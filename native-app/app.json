@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "RunWalk Buddy",
+    "slug": "runwalk-buddy",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#fff8fb"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.runwalkbuddy.app",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "audio",
+          "audio"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.runwalkbuddy.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#fff8fb"
+      },
+      "permissions": [
+        "VIBRATE",
+        "FOREGROUND_SERVICE"
+      ]
+    },
+    "plugins": [
+      "expo-dev-client",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#b34f7d"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "60ea8ece-e2c8-4910-a4c6-b7af778a42bc"
+      }
+    }
+  }
+}

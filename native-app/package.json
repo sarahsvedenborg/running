@@ -1,0 +1,39 @@
+{
+  "name": "runwalk-buddy-native",
+  "version": "1.0.0",
+  "private": true,
+  "main": "expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start",
+    "start:dev-client": "expo start --dev-client",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "eas:configure": "eas build:configure",
+    "eas:ios:preview": "eas build --platform ios --profile preview",
+    "eas:ios:production": "eas build --platform ios --profile production",
+    "eas:submit:ios": "eas submit --platform ios"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "2.1.2",
+    "@react-native-picker/picker": "2.11.1",
+    "expo": "~53.0.0",
+    "expo-av": "~15.1.0",
+    "expo-dev-client": "~5.2.4",
+    "expo-haptics": "~14.1.4",
+    "expo-notifications": "~0.31.2",
+    "expo-speech": "~13.1.7",
+    "expo-status-bar": "~2.2.3",
+    "react": "19.0.0",
+    "react-native": "0.79.6"
+  },
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "expo-av"
+        ]
+      }
+    }
+  }
+}
