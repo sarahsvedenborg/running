@@ -365,6 +365,45 @@ function buildSessionFromSettings(settings) {
   })
 }
 
+function settingsFromPlanConfig(config) {
+  const baseSettings = {
+    warmupMinutes: (config.warmupSeconds ?? 0) / 60,
+    cooldownMinutes: (config.cooldownSeconds ?? 0) / 60,
+    runSeconds: DEFAULT_SETTINGS.runSeconds,
+    walkSeconds: DEFAULT_SETTINGS.walkSeconds,
+    cycles: DEFAULT_SETTINGS.cycles,
+  }
+
+  if (config.continuousRunSeconds) {
+    return sanitizeSettings({
+      ...baseSettings,
+      runSeconds: config.continuousRunSeconds,
+      walkSeconds: DEFAULT_SETTINGS.walkSeconds,
+      cycles: 1,
+    })
+  }
+
+  if (config.intervals?.length) {
+    const expandedIntervals = config.intervals.flatMap((block) =>
+      Array.from({ length: block.repeat ?? 1 }, () => block),
+    )
+
+    return sanitizeSettings({
+      ...baseSettings,
+      runSeconds: expandedIntervals[0]?.runSeconds ?? DEFAULT_SETTINGS.runSeconds,
+      walkSeconds: expandedIntervals.find((block) => block.walkSeconds)?.walkSeconds ?? DEFAULT_SETTINGS.walkSeconds,
+      cycles: expandedIntervals.filter((block) => block.runSeconds).length || 1,
+    })
+  }
+
+  return sanitizeSettings({
+    ...baseSettings,
+    runSeconds: config.runSeconds ?? DEFAULT_SETTINGS.runSeconds,
+    walkSeconds: config.walkSeconds ?? DEFAULT_SETTINGS.walkSeconds,
+    cycles: config.cycles ?? DEFAULT_SETTINGS.cycles,
+  })
+}
+
 function flattenPlanOptions() {
   return Object.entries(plans).flatMap(([planKey, plan]) =>
     plan.weeks.map((week, index) => ({
@@ -653,7 +692,17 @@ function App() {
   }
 
   function handlePlanWeekChange(event) {
-    setSelectedPlanWeek(event.target.value)
+    const nextValue = event.target.value
+    setSelectedPlanWeek(nextValue)
+
+    const nextPlanOption = planOptions.find((option) => option.value === nextValue)
+
+    if (nextPlanOption) {
+      const nextSettings = settingsFromPlanConfig(nextPlanOption.week.config)
+      setSettings(nextSettings)
+      setDraftSettings(settingsToDraft(nextSettings))
+    }
+
     setSessionTitle('Nybegynnerøkt')
     resetSessionState(STATUS.IDLE)
   }
