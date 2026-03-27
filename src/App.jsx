@@ -3,6 +3,7 @@ import './App.css'
 
 const STORAGE_KEY = 'runwalk-buddy-settings'
 const PROGRESS_STORAGE_KEY = 'runwalk-buddy-progress'
+const SHOW_DEV_TEST_WEEK = import.meta.env.DEV
 
 const DEFAULT_SETTINGS = {
   runSeconds: 30,
@@ -190,6 +191,17 @@ const plans = {
       },
     ],
   },
+}
+
+const devTestWeek = {
+  week: 'test',
+  runs: [
+    {
+      warmup: 30,
+      intervals: Array.from({ length: 3 }, () => ({ run: 20, walk: 20 })),
+      cooldown: 30,
+    },
+  ],
 }
 
 function supportsSpeech() {
@@ -443,25 +455,53 @@ function flattenWeekOptions() {
         label: planKey === 'preBeginner' ? `Pre-week ${week.week}` : `Week ${week.week}`,
       })),
     ),
+    ...(SHOW_DEV_TEST_WEEK
+      ? [
+          {
+            value: 'test:test',
+            planKey: 'test',
+            week: devTestWeek,
+            planName: 'Test',
+            label: 'Test',
+          },
+        ]
+      : []),
   ]
 }
 
 function flattenRunOptions() {
-  return Object.entries(plans).flatMap(([planKey, plan]) =>
-    plan.weeks.flatMap((week) =>
-      week.runs.map((run, runIndex) => ({
-        runId: getRunId(planKey, week.week, runIndex),
-        weekOptionValue: `${planKey}:${week.week}`,
-        planKey,
-        planName: plan.name,
-        weekNumber: week.week,
-        weekLabel: planKey === 'preBeginner' ? `Pre-week ${week.week}` : `Week ${week.week}`,
-        runIndex,
-        runLabel: `Run ${runIndex + 1}`,
-        run,
-      })),
+  return [
+    ...Object.entries(plans).flatMap(([planKey, plan]) =>
+      plan.weeks.flatMap((week) =>
+        week.runs.map((run, runIndex) => ({
+          runId: getRunId(planKey, week.week, runIndex),
+          weekOptionValue: `${planKey}:${week.week}`,
+          planKey,
+          planName: plan.name,
+          weekNumber: week.week,
+          weekLabel: planKey === 'preBeginner' ? `Pre-week ${week.week}` : `Week ${week.week}`,
+          runIndex,
+          runLabel: `Run ${runIndex + 1}`,
+          run,
+        })),
+      ),
     ),
-  )
+    ...(SHOW_DEV_TEST_WEEK
+      ? [
+          {
+            runId: getRunId('test', 'test', 0),
+            weekOptionValue: 'test:test',
+            planKey: 'test',
+            planName: 'Test',
+            weekNumber: 'test',
+            weekLabel: 'Test',
+            runIndex: 0,
+            runLabel: 'Run 1',
+            run: devTestWeek.runs[0],
+          },
+        ]
+      : []),
+  ]
 }
 
 const weekOptionsData = flattenWeekOptions()
@@ -606,7 +646,9 @@ function App() {
     () => weekOptions.find((option) => option.value === selectedWeekOptionValue) ?? null,
     [selectedWeekOptionValue, weekOptions],
   )
-  const selectedPlan = selectedWeekOption ? plans[selectedWeekOption.planKey] : null
+  const selectedPlan = selectedWeekOption
+    ? plans[selectedWeekOption.planKey] ?? { name: selectedWeekOption.planName }
+    : null
   const selectedWeek = selectedWeekOption?.week ?? null
   const isCustomSelection = selectedWeekOption?.planKey === 'custom'
   const currentWeekRunOptions = useMemo(
@@ -686,10 +728,12 @@ function App() {
     }
   }, [])
 
-  const speak = useCallback((text) => {
+  const speak = useCallback((text, options = {}) => {
     if (!speechEnabledRef.current) {
       return
     }
+
+    const { immediate = false } = options
 
     if (speechTimeoutRef.current) {
       window.clearTimeout(speechTimeoutRef.current)
@@ -713,6 +757,12 @@ function App() {
     const speakNow = () => {
       window.speechSynthesis.resume()
       window.speechSynthesis.speak(utterance)
+    }
+
+    if (immediate) {
+      window.speechSynthesis.cancel()
+      speakNow()
+      return
     }
 
     if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
@@ -887,7 +937,9 @@ function App() {
     setCurrentPhaseIndex(0)
     setRemainingMs(nextSession[0].durationMs)
     setStatus(STATUS.RUNNING)
-    speak(nextSession[0].prompt)
+    // Start cue needs to happen inside the button interaction so mobile browsers
+    // keep speech unlocked for the rest of the workout countdowns and prompts.
+    speak(nextSession[0].prompt, { immediate: true })
     startTicker()
   }
 
