@@ -116,6 +116,18 @@ function formatDuration(seconds) {
   return `${seconds} sek`
 }
 
+function countdownPrompt(seconds) {
+  if (seconds === 3) {
+    return 'Tre'
+  }
+
+  if (seconds === 2) {
+    return 'To'
+  }
+
+  return 'En'
+}
+
 function buildSession(settings) {
   const phases = []
   const warmupSeconds = Math.round(settings.warmupMinutes * 60)
@@ -182,6 +194,7 @@ function App() {
   const phaseIndexRef = useRef(0)
   const phaseEndRef = useRef(0)
   const pausedRemainingRef = useRef(0)
+  const lastCountdownCueRef = useRef('')
 
   useEffect(() => {
     statusRef.current = status
@@ -269,8 +282,21 @@ function App() {
     if (phaseIndex !== phaseIndexRef.current) {
       phaseIndexRef.current = phaseIndex
       phaseEndRef.current = phaseEnd
+      lastCountdownCueRef.current = ''
       setCurrentPhaseIndex(phaseIndex)
       speak(sessionRef.current[phaseIndex].prompt)
+    }
+
+    const remainingSeconds = Math.max(0, Math.ceil((phaseEndRef.current - now) / 1000))
+    const hasUpcomingPhase = phaseIndexRef.current < sessionRef.current.length - 1
+
+    if (hasUpcomingPhase && remainingSeconds > 0 && remainingSeconds <= 3) {
+      const cueKey = `${phaseIndexRef.current}-${remainingSeconds}`
+
+      if (lastCountdownCueRef.current !== cueKey) {
+        lastCountdownCueRef.current = cueKey
+        speak(countdownPrompt(remainingSeconds))
+      }
     }
 
     setRemainingMs(Math.max(0, phaseEndRef.current - now))
@@ -321,6 +347,7 @@ function App() {
     sessionRef.current = nextSession
     phaseIndexRef.current = 0
     pausedRemainingRef.current = 0
+    lastCountdownCueRef.current = ''
     phaseEndRef.current = Date.now() + nextSession[0].durationMs
     statusRef.current = STATUS.RUNNING
 
@@ -367,6 +394,7 @@ function App() {
     phaseIndexRef.current = 0
     phaseEndRef.current = 0
     pausedRemainingRef.current = 0
+    lastCountdownCueRef.current = ''
     setSession([])
     setCurrentPhaseIndex(0)
     setRemainingMs(0)
