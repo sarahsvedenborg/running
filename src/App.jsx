@@ -476,6 +476,8 @@ function App() {
   const [speechEnabled] = useState(supportsSpeech)
   const [sessionTitle, setSessionTitle] = useState('Nybegynnerøkt')
   const [activeRunMeta, setActiveRunMeta] = useState(null)
+  const [installPromptEvent, setInstallPromptEvent] = useState(null)
+  const [isInstalled, setIsInstalled] = useState(false)
 
   const intervalRef = useRef(null)
   const statusRef = useRef(STATUS.IDLE)
@@ -510,6 +512,29 @@ function App() {
   useEffect(() => {
     setDraftSettings(settingsToDraft(settings))
   }, [settings])
+
+  useEffect(() => {
+    const standaloneMatch = window.matchMedia('(display-mode: standalone)')
+    const handleInstalled = () => {
+      setIsInstalled(true)
+      setInstallPromptEvent(null)
+    }
+    const handleBeforeInstall = (event) => {
+      event.preventDefault()
+      setInstallPromptEvent(event)
+    }
+
+    setIsInstalled(standaloneMatch.matches || window.navigator.standalone === true)
+    standaloneMatch.addEventListener('change', handleInstalled)
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall)
+    window.addEventListener('appinstalled', handleInstalled)
+
+    return () => {
+      standaloneMatch.removeEventListener('change', handleInstalled)
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall)
+      window.removeEventListener('appinstalled', handleInstalled)
+    }
+  }, [])
 
   useEffect(() => {
     if (selectedWeekOptionValue && selectedRunValue !== '') {
@@ -865,8 +890,26 @@ function App() {
     resetSessionState(STATUS.IDLE)
   }
 
+  async function handleInstallApp() {
+    if (!installPromptEvent) {
+      return
+    }
+
+    await installPromptEvent.prompt()
+    await installPromptEvent.userChoice
+    setInstallPromptEvent(null)
+  }
+
   return (
     <main className="app-shell">
+      {!isInstalled && installPromptEvent && (
+        <div className="install-banner">
+          <button type="button" className="button button-install" onClick={handleInstallApp}>
+            Installer app
+          </button>
+        </div>
+      )}
+
       <section className="hero-card">
         <p className="eyebrow">RunWalk Buddy</p>
         <h1>Gåing og løping</h1>
