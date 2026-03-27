@@ -34,6 +34,16 @@ function supportsSpeech() {
   )
 }
 
+function settingsToDraft(settings) {
+  return {
+    runSeconds: String(settings.runSeconds),
+    walkSeconds: String(settings.walkSeconds),
+    cycles: String(settings.cycles),
+    warmupMinutes: String(settings.warmupMinutes),
+    cooldownMinutes: String(settings.cooldownMinutes),
+  }
+}
+
 function readSavedSettings() {
   if (typeof window === 'undefined') {
     return DEFAULT_SETTINGS
@@ -154,6 +164,7 @@ function buildSession(settings) {
 
 function App() {
   const [settings, setSettings] = useState(readSavedSettings)
+  const [draftSettings, setDraftSettings] = useState(() => settingsToDraft(readSavedSettings()))
   const [status, setStatus] = useState(STATUS.IDLE)
   const [session, setSession] = useState([])
   const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0)
@@ -180,6 +191,10 @@ function App() {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
     }
+  }, [settings])
+
+  useEffect(() => {
+    setDraftSettings(settingsToDraft(settings))
   }, [settings])
 
   const sessionSummary = useMemo(() => buildSession(settings), [settings])
@@ -284,8 +299,15 @@ function App() {
     }
   }, [clearTicker, syncTimer])
 
+  function commitDraftSettings() {
+    const nextSettings = sanitizeSettings(draftSettings)
+    setSettings(nextSettings)
+    return nextSettings
+  }
+
   function startSession() {
-    const nextSession = buildSession(settings)
+    const nextSettings = commitDraftSettings()
+    const nextSession = buildSession(nextSettings)
 
     if (!nextSession.length) {
       return
@@ -352,7 +374,11 @@ function App() {
   }
 
   function handleSettingChange(key, value) {
-    setSettings((current) => sanitizeSettings({ ...current, [key]: value }))
+    setDraftSettings((current) => ({ ...current, [key]: value }))
+  }
+
+  function handleSettingBlur() {
+    commitDraftSettings()
   }
 
   return (
@@ -450,8 +476,9 @@ function App() {
               min="5"
               max="600"
               step="5"
-              value={settings.runSeconds}
+              value={draftSettings.runSeconds}
               onChange={(event) => handleSettingChange('runSeconds', event.target.value)}
+              onBlur={handleSettingBlur}
             />
           </label>
 
@@ -462,8 +489,9 @@ function App() {
               min="10"
               max="1800"
               step="10"
-              value={settings.walkSeconds}
+              value={draftSettings.walkSeconds}
               onChange={(event) => handleSettingChange('walkSeconds', event.target.value)}
+              onBlur={handleSettingBlur}
             />
           </label>
 
@@ -474,8 +502,9 @@ function App() {
               min="1"
               max="20"
               step="1"
-              value={settings.cycles}
+              value={draftSettings.cycles}
               onChange={(event) => handleSettingChange('cycles', event.target.value)}
+              onBlur={handleSettingBlur}
             />
           </label>
 
@@ -486,8 +515,9 @@ function App() {
               min="0"
               max="30"
               step="0.5"
-              value={settings.warmupMinutes}
+              value={draftSettings.warmupMinutes}
               onChange={(event) => handleSettingChange('warmupMinutes', event.target.value)}
+              onBlur={handleSettingBlur}
             />
           </label>
 
@@ -498,8 +528,9 @@ function App() {
               min="0"
               max="30"
               step="0.5"
-              value={settings.cooldownMinutes}
+              value={draftSettings.cooldownMinutes}
               onChange={(event) => handleSettingChange('cooldownMinutes', event.target.value)}
+              onBlur={handleSettingBlur}
             />
           </label>
         </div>
