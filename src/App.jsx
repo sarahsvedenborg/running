@@ -3,19 +3,11 @@ import './App.css'
 
 const STORAGE_KEY = 'runwalk-buddy-settings'
 
-/* const DEFAULT_SETTINGS = {
+const DEFAULT_SETTINGS = {
   runSeconds: 30,
   walkSeconds: 120,
   cycles: 6,
   warmupMinutes: 5,
-  cooldownMinutes: 5,
-} */
-
-const DEFAULT_SETTINGS = {
-  runSeconds: 30,
-  walkSeconds: 30,
-  cycles: 6,
-  warmupMinutes: 1,
   cooldownMinutes: 5,
 }
 
@@ -24,6 +16,119 @@ const STATUS = {
   RUNNING: 'running',
   PAUSED: 'paused',
   COMPLETE: 'complete',
+}
+
+const PHASE_KIND = {
+  WALK: 'walk',
+  RUN: 'run',
+}
+
+/*
+  Training plans live in one structured object so the UI and session engine can
+  read the same source of truth. Each week can be defined as simple repeated
+  intervals or as an explicit list of interval blocks for more complex sessions.
+*/
+const plans = {
+  preBeginner: {
+    name: 'Pre-Beginner Plan',
+    weeks: [
+      {
+        label: 'Week 1',
+        config: { warmupSeconds: 300, runSeconds: 20, walkSeconds: 180, cycles: 6, cooldownSeconds: 300 },
+      },
+      {
+        label: 'Week 2',
+        config: { warmupSeconds: 300, runSeconds: 25, walkSeconds: 150, cycles: 7, cooldownSeconds: 300 },
+      },
+      {
+        label: 'Week 3',
+        config: { warmupSeconds: 300, runSeconds: 30, walkSeconds: 120, cycles: 8, cooldownSeconds: 300 },
+      },
+    ],
+  },
+  couchTo5k: {
+    name: 'Couch to 5K Plan',
+    weeks: [
+      {
+        label: 'Week 1',
+        config: { warmupSeconds: 300, runSeconds: 60, walkSeconds: 90, cycles: 8, cooldownSeconds: 300 },
+      },
+      {
+        label: 'Week 2',
+        config: { warmupSeconds: 300, runSeconds: 90, walkSeconds: 120, cycles: 6, cooldownSeconds: 300 },
+      },
+      {
+        label: 'Week 3',
+        config: {
+          warmupSeconds: 300,
+          cooldownSeconds: 300,
+          intervals: [
+            { runSeconds: 90, walkSeconds: 90, repeat: 2 },
+            { runSeconds: 180, walkSeconds: 180, repeat: 2 },
+          ],
+        },
+      },
+      {
+        label: 'Week 4',
+        config: {
+          warmupSeconds: 300,
+          cooldownSeconds: 300,
+          intervals: [
+            { runSeconds: 180, walkSeconds: 90 },
+            { runSeconds: 300, walkSeconds: 150 },
+            { runSeconds: 180, walkSeconds: 90 },
+            { runSeconds: 300, walkSeconds: 150 },
+          ],
+        },
+      },
+      {
+        label: 'Week 5',
+        config: {
+          warmupSeconds: 300,
+          cooldownSeconds: 300,
+          intervals: [
+            { runSeconds: 300, walkSeconds: 180 },
+            { runSeconds: 480 },
+          ],
+        },
+      },
+      {
+        label: 'Week 6',
+        config: {
+          warmupSeconds: 300,
+          cooldownSeconds: 300,
+          intervals: [
+            { runSeconds: 300, walkSeconds: 180 },
+            { runSeconds: 600 },
+          ],
+        },
+      },
+      {
+        label: 'Week 7',
+        config: {
+          warmupSeconds: 300,
+          cooldownSeconds: 300,
+          continuousRunSeconds: 1500,
+        },
+      },
+      {
+        label: 'Week 8',
+        config: {
+          warmupSeconds: 300,
+          cooldownSeconds: 300,
+          continuousRunSeconds: 1680,
+        },
+      },
+      {
+        label: 'Week 9',
+        config: {
+          warmupSeconds: 300,
+          cooldownSeconds: 300,
+          continuousRunSeconds: 1800,
+        },
+      },
+    ],
+  },
 }
 
 function supportsSpeech() {
@@ -128,64 +233,149 @@ function countdownPrompt(seconds) {
   return 'En'
 }
 
-function buildSession(settings) {
+function phasePrompt(kind) {
+  return kind === PHASE_KIND.RUN ? 'Begynn å løpe' : 'Begynn å gå'
+}
+
+function phaseSummaryLabel(kind) {
+  return kind === PHASE_KIND.RUN ? 'Løp' : 'Gå'
+}
+
+function addPhase(phases, { key, kind, durationSeconds, label, statusName, detail, announceHalfway = false }) {
+  if (!durationSeconds || durationSeconds <= 0) {
+    return
+  }
+
+  phases.push({
+    key,
+    kind,
+    name: label,
+    statusName,
+    prompt: phasePrompt(kind),
+    detail,
+    durationMs: durationSeconds * 1000,
+    halfwayPrompt: announceHalfway && durationSeconds >= 480 ? 'Halvveis' : null,
+  })
+}
+
+/*
+  The session engine builds one flat phase list no matter where the workout came
+  from. That lets the timer support repeating intervals, custom complex blocks,
+  and continuous runs with the same playback logic.
+*/
+function buildSessionFromPlanConfig(config) {
   const phases = []
-  const warmupSeconds = Math.round(settings.warmupMinutes * 60)
-  const cooldownSeconds = Math.round(settings.cooldownMinutes * 60)
+  const warmupSeconds = Math.round((config.warmupSeconds ?? 0))
+  const cooldownSeconds = Math.round((config.cooldownSeconds ?? 0))
 
-  if (warmupSeconds > 0) {
-    phases.push({
-      key: 'warmup',
-      name: 'Oppvarming',
-      statusName: 'Oppvarming - Gå',
-      prompt: 'Begynn å gå',
-      detail: `Gå i ${formatDuration(warmupSeconds)}`,
-      durationMs: warmupSeconds * 1000,
+  addPhase(phases, {
+    key: 'warmup',
+    kind: PHASE_KIND.WALK,
+    durationSeconds: warmupSeconds,
+    label: 'Oppvarming',
+    statusName: 'Gåing',
+    detail: `Gå i ${formatDuration(warmupSeconds)}`,
+  })
+
+  if (config.continuousRunSeconds) {
+    addPhase(phases, {
+      key: 'continuous-run',
+      kind: PHASE_KIND.RUN,
+      durationSeconds: config.continuousRunSeconds,
+      label: 'Løping',
+      statusName: 'Løping',
+      detail: `Løp i ${formatDuration(config.continuousRunSeconds)}`,
+      announceHalfway: true,
     })
+  } else if (config.intervals?.length) {
+    let runCount = 0
+    let walkCount = 0
+
+    config.intervals.forEach((block, blockIndex) => {
+      const repeat = block.repeat ?? 1
+
+      for (let repeatIndex = 0; repeatIndex < repeat; repeatIndex += 1) {
+        if (block.runSeconds) {
+          runCount += 1
+          addPhase(phases, {
+            key: `run-${blockIndex + 1}-${repeatIndex + 1}`,
+            kind: PHASE_KIND.RUN,
+            durationSeconds: block.runSeconds,
+            label: `Løp ${runCount}`,
+            statusName: 'Løping',
+            detail: `Løp i ${formatDuration(block.runSeconds)}`,
+            announceHalfway: true,
+          })
+        }
+
+        if (block.walkSeconds) {
+          walkCount += 1
+          addPhase(phases, {
+            key: `walk-${blockIndex + 1}-${repeatIndex + 1}`,
+            kind: PHASE_KIND.WALK,
+            durationSeconds: block.walkSeconds,
+            label: `Gå ${walkCount}`,
+            statusName: 'Gåing',
+            detail: `Gå i ${formatDuration(block.walkSeconds)}`,
+          })
+        }
+      }
+    })
+  } else {
+    for (let cycle = 1; cycle <= config.cycles; cycle += 1) {
+      addPhase(phases, {
+        key: `run-${cycle}`,
+        kind: PHASE_KIND.RUN,
+        durationSeconds: config.runSeconds,
+        label: `Løp ${cycle} av ${config.cycles}`,
+        statusName: 'Løping',
+        detail: `Løp i ${formatDuration(config.runSeconds)}`,
+      })
+
+      addPhase(phases, {
+        key: `walk-${cycle}`,
+        kind: PHASE_KIND.WALK,
+        durationSeconds: config.walkSeconds,
+        label: `Gå ${cycle} av ${config.cycles}`,
+        statusName: 'Gåing',
+        detail: `Gå i ${formatDuration(config.walkSeconds)}`,
+      })
+    }
   }
 
-  for (let cycle = 1; cycle <= settings.cycles; cycle += 1) {
-    phases.push({
-      key: `run-${cycle}`,
-      name: `Løp ${cycle} av ${settings.cycles}`,
-      statusName: `Runde ${cycle} av ${settings.cycles} - Løp`,
-      prompt: 'Begynn å løpe',
-      detail: `Løp i ${formatDuration(settings.runSeconds)}`,
-      durationMs: settings.runSeconds * 1000,
-    })
-
-    phases.push({
-      key: `walk-${cycle}`,
-      name: `Gå ${cycle} av ${settings.cycles}`,
-      statusName: `Runde ${cycle} av ${settings.cycles} - Gå`,
-      prompt: 'Begynn å gå',
-      detail: `Gå i ${formatDuration(settings.walkSeconds)}`,
-      durationMs: settings.walkSeconds * 1000,
-    })
-  }
-
-  if (cooldownSeconds > 0) {
-    phases.push({
-      key: 'cooldown',
-      name: 'Nedtrapping',
-      statusName: 'Nedtrapping - Gå',
-      prompt: 'Begynn å gå',
-      detail: `Gå i ${formatDuration(cooldownSeconds)}`,
-      durationMs: cooldownSeconds * 1000,
-    })
-  }
+  addPhase(phases, {
+    key: 'cooldown',
+    kind: PHASE_KIND.WALK,
+    durationSeconds: cooldownSeconds,
+    label: 'Nedtrapping',
+    statusName: 'Gåing',
+    detail: `Gå i ${formatDuration(cooldownSeconds)}`,
+  })
 
   return phases
+}
+
+function buildSessionFromSettings(settings) {
+  return buildSessionFromPlanConfig({
+    warmupSeconds: Math.round(settings.warmupMinutes * 60),
+    runSeconds: settings.runSeconds,
+    walkSeconds: settings.walkSeconds,
+    cycles: settings.cycles,
+    cooldownSeconds: Math.round(settings.cooldownMinutes * 60),
+  })
 }
 
 function App() {
   const [settings, setSettings] = useState(readSavedSettings)
   const [draftSettings, setDraftSettings] = useState(() => settingsToDraft(readSavedSettings()))
+  const [selectedPlanKey, setSelectedPlanKey] = useState('')
+  const [selectedWeekIndex, setSelectedWeekIndex] = useState('')
   const [status, setStatus] = useState(STATUS.IDLE)
   const [session, setSession] = useState([])
   const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0)
   const [remainingMs, setRemainingMs] = useState(0)
   const [speechEnabled] = useState(supportsSpeech)
+  const [sessionTitle, setSessionTitle] = useState('Nybegynnerøkt')
 
   const intervalRef = useRef(null)
   const statusRef = useRef(STATUS.IDLE)
@@ -195,6 +385,7 @@ function App() {
   const phaseEndRef = useRef(0)
   const pausedRemainingRef = useRef(0)
   const lastCountdownCueRef = useRef('')
+  const lastHalfwayCueRef = useRef('')
 
   useEffect(() => {
     statusRef.current = status
@@ -214,10 +405,14 @@ function App() {
     setDraftSettings(settingsToDraft(settings))
   }, [settings])
 
-  const sessionSummary = useMemo(() => buildSession(settings), [settings])
-  const totalDurationSeconds = useMemo(
-    () => Math.round(sessionSummary.reduce((sum, phase) => sum + phase.durationMs, 0) / 1000),
-    [sessionSummary],
+  const selectedPlan = selectedPlanKey ? plans[selectedPlanKey] : null
+  const selectedWeek =
+    selectedPlan && selectedWeekIndex !== '' ? selectedPlan.weeks[Number(selectedWeekIndex)] : null
+
+  const customSessionSummary = useMemo(() => buildSessionFromSettings(settings), [settings])
+  const customTotalDurationSeconds = useMemo(
+    () => Math.round(customSessionSummary.reduce((sum, phase) => sum + phase.durationMs, 0) / 1000),
+    [customSessionSummary],
   )
 
   const activePhase = session[currentPhaseIndex] ?? null
@@ -243,6 +438,7 @@ function App() {
     utterance.rate = 1
     utterance.pitch = 1
     utterance.volume = 1
+    utterance.lang = 'nb-NO'
 
     window.speechSynthesis.cancel()
     window.speechSynthesis.resume()
@@ -267,7 +463,6 @@ function App() {
     let phaseIndex = phaseIndexRef.current
     let phaseEnd = phaseEndRef.current
 
-    // Advance through any phases that elapsed while the page was backgrounded.
     while (phaseIndex < sessionRef.current.length && now >= phaseEnd) {
       phaseIndex += 1
 
@@ -283,12 +478,24 @@ function App() {
       phaseIndexRef.current = phaseIndex
       phaseEndRef.current = phaseEnd
       lastCountdownCueRef.current = ''
+      lastHalfwayCueRef.current = ''
       setCurrentPhaseIndex(phaseIndex)
       speak(sessionRef.current[phaseIndex].prompt)
     }
 
+    const currentPhase = sessionRef.current[phaseIndexRef.current]
     const remainingSeconds = Math.max(0, Math.ceil((phaseEndRef.current - now) / 1000))
+    const elapsedMs = currentPhase.durationMs - Math.max(0, phaseEndRef.current - now)
     const hasUpcomingPhase = phaseIndexRef.current < sessionRef.current.length - 1
+
+    if (currentPhase.halfwayPrompt && elapsedMs >= currentPhase.durationMs / 2) {
+      const halfwayKey = currentPhase.key
+
+      if (lastHalfwayCueRef.current !== halfwayKey) {
+        lastHalfwayCueRef.current = halfwayKey
+        speak(currentPhase.halfwayPrompt)
+      }
+    }
 
     if (hasUpcomingPhase && remainingSeconds > 0 && remainingSeconds <= 3) {
       const cueKey = `${phaseIndexRef.current}-${remainingSeconds}`
@@ -308,7 +515,6 @@ function App() {
   }, [clearTicker, syncTimer])
 
   useEffect(() => {
-    // Recalculate immediately when the page becomes active again so the timer stays accurate.
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
         syncTimer()
@@ -329,16 +535,32 @@ function App() {
     }
   }, [clearTicker, syncTimer])
 
+  function resetSessionState(nextStatus = STATUS.IDLE) {
+    clearTicker()
+    statusRef.current = nextStatus
+    sessionRef.current = []
+    phaseIndexRef.current = 0
+    phaseEndRef.current = 0
+    pausedRemainingRef.current = 0
+    lastCountdownCueRef.current = ''
+    lastHalfwayCueRef.current = ''
+    setSession([])
+    setCurrentPhaseIndex(0)
+    setRemainingMs(0)
+    setStatus(nextStatus)
+
+    if (speechEnabled) {
+      window.speechSynthesis.cancel()
+    }
+  }
+
   function commitDraftSettings() {
     const nextSettings = sanitizeSettings(draftSettings)
     setSettings(nextSettings)
     return nextSettings
   }
 
-  function startSession() {
-    const nextSettings = commitDraftSettings()
-    const nextSession = buildSession(nextSettings)
-
+  function beginSession(nextSession, title) {
     if (!nextSession.length) {
       return
     }
@@ -348,15 +570,31 @@ function App() {
     phaseIndexRef.current = 0
     pausedRemainingRef.current = 0
     lastCountdownCueRef.current = ''
+    lastHalfwayCueRef.current = ''
     phaseEndRef.current = Date.now() + nextSession[0].durationMs
     statusRef.current = STATUS.RUNNING
 
     setSession(nextSession)
+    setSessionTitle(title)
     setCurrentPhaseIndex(0)
     setRemainingMs(nextSession[0].durationMs)
     setStatus(STATUS.RUNNING)
     speak(nextSession[0].prompt)
     startTicker()
+  }
+
+  function startCustomSession() {
+    const nextSettings = commitDraftSettings()
+    beginSession(buildSessionFromSettings(nextSettings), 'Nybegynnerøkt')
+  }
+
+  function startSelectedWeek() {
+    if (!selectedPlan || !selectedWeek) {
+      return
+    }
+
+    const title = `${selectedPlan.name} - ${selectedWeek.label}`
+    beginSession(buildSessionFromPlanConfig(selectedWeek.config), title)
   }
 
   function pauseSession() {
@@ -388,21 +626,8 @@ function App() {
   }
 
   function stopSession() {
-    clearTicker()
-    statusRef.current = STATUS.IDLE
-    sessionRef.current = []
-    phaseIndexRef.current = 0
-    phaseEndRef.current = 0
-    pausedRemainingRef.current = 0
-    lastCountdownCueRef.current = ''
-    setSession([])
-    setCurrentPhaseIndex(0)
-    setRemainingMs(0)
-    setStatus(STATUS.IDLE)
-
-    if (speechEnabled) {
-      window.speechSynthesis.cancel()
-    }
+    setSessionTitle('Nybegynnerøkt')
+    resetSessionState(STATUS.IDLE)
   }
 
   function handleSettingChange(key, value) {
@@ -413,14 +638,69 @@ function App() {
     commitDraftSettings()
   }
 
+  function handlePlanChange(event) {
+    setSelectedPlanKey(event.target.value)
+    setSelectedWeekIndex('')
+    setSessionTitle('Nybegynnerøkt')
+    resetSessionState(STATUS.IDLE)
+  }
+
+  function handleWeekChange(event) {
+    setSelectedWeekIndex(event.target.value)
+    setSessionTitle('Nybegynnerøkt')
+    resetSessionState(STATUS.IDLE)
+  }
+
   return (
     <main className="app-shell">
       <section className="hero-card">
         <p className="eyebrow">RunWalk Buddy</p>
         <h1>Gåing og løping</h1>
-        <p className="intro">
-          Trykk start, legg bort mobilen og følg stemmebeskjedene.
-        </p>
+        <p className="intro">Velg en plan eller start en enkel økt og følg stemmebeskjedene.</p>
+
+        <section className="plan-card">
+          <h2>Treningsplan</h2>
+          <div className="plan-grid">
+            <label>
+              <span>Plan</span>
+              <select value={selectedPlanKey} onChange={handlePlanChange}>
+                <option value="">Velg plan</option>
+                {Object.entries(plans).map(([planKey, plan]) => (
+                  <option key={planKey} value={planKey}>
+                    {plan.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span>Uke</span>
+              <select value={selectedWeekIndex} onChange={handleWeekChange} disabled={!selectedPlan}>
+                <option value="">Velg uke</option>
+                {selectedPlan?.weeks.map((week, index) => (
+                  <option key={week.label} value={index}>
+                    {week.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <button
+            type="button"
+            className="button button-primary"
+            onClick={startSelectedWeek}
+            disabled={!selectedPlan || selectedWeekIndex === '' || status === STATUS.RUNNING}
+          >
+            Start valgt uke
+          </button>
+
+          {selectedWeek && (
+            <p className="plan-summary">
+              {selectedPlan.name} - {selectedWeek.label}
+            </p>
+          )}
+        </section>
 
         <div className="status-panel" aria-live="polite">
           <p className="status-label">
@@ -430,12 +710,14 @@ function App() {
             {status === STATUS.COMPLETE && 'Økten er ferdig'}
           </p>
 
+          <p className="session-title">{status === STATUS.IDLE ? 'Nybegynnerøkt' : sessionTitle}</p>
+
           <p className="countdown">
-            {status === STATUS.IDLE ? formatClock(totalDurationSeconds) : formatClock(remainingMs / 1000)}
+            {status === STATUS.IDLE ? formatClock(customTotalDurationSeconds) : formatClock(remainingMs / 1000)}
           </p>
 
           <p className="phase-detail">
-            {status === STATUS.IDLE && `Nybegynnerøkten varer i ${formatDuration(totalDurationSeconds)}`}
+            {status === STATUS.IDLE && `Standardøkt varer i ${formatDuration(customTotalDurationSeconds)}`}
             {status !== STATUS.IDLE && activePhase?.detail}
           </p>
 
@@ -447,7 +729,7 @@ function App() {
           </div>
 
           {nextPhase && status !== STATUS.IDLE && status !== STATUS.COMPLETE && (
-            <p className="next-up">Neste: {nextPhase.name}</p>
+            <p className="next-up">Neste: {phaseSummaryLabel(nextPhase.kind)}</p>
           )}
         </div>
 
@@ -455,7 +737,7 @@ function App() {
           <button
             type="button"
             className="button button-primary"
-            onClick={startSession}
+            onClick={startCustomSession}
             disabled={status === STATUS.RUNNING}
           >
             Start nybegynnerøkt

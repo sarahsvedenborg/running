@@ -57,6 +57,64 @@ h1 {
   color: var(--text-soft);
 }
 
+.plan-card {
+  margin-top: 18px;
+  padding: 18px 16px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 240, 247, 0.9));
+  border: 1px solid rgba(179, 79, 125, 0.12);
+}
+
+.plan-card h2,
+.session-title,
+.plan-summary {
+  margin: 0;
+}
+
+.plan-card h2 {
+  font-size: 1.05rem;
+  color: var(--text-main);
+}
+
+.plan-grid {
+  margin-top: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.plan-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.plan-grid span {
+  font-size: 0.95rem;
+}
+
+.plan-grid select {
+  min-height: 52px;
+  border-radius: 16px;
+  border: 1px solid rgba(179, 79, 125, 0.16);
+  padding: 0 14px;
+  font: inherit;
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.plan-card .button {
+  margin-top: 14px;
+  width: 100%;
+}
+
+.plan-summary {
+  margin-top: 12px;
+  font-size: 0.95rem;
+  color: var(--text-soft);
+}
+
 .status-panel {
   margin-top: 22px;
   padding: 20px 16px;
@@ -90,6 +148,13 @@ h1 {
   font-weight: 700;
   color: var(--text-main);
   text-shadow: 0 8px 24px rgba(179, 79, 125, 0.12);
+}
+
+.session-title {
+  margin-top: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent-secondary);
 }
 
 .phase-detail,
@@ -241,6 +306,7 @@ h1 {
   background: rgba(255, 255, 255, 0.9);
 }
 
+.plan-grid select:focus-visible,
 .settings-grid input:focus-visible,
 .button:focus-visible,
 .settings-card summary:focus-visible {
@@ -267,6 +333,10 @@ h1 {
   }
 
   .settings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .plan-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
