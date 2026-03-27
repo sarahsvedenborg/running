@@ -3,6 +3,7 @@ import './App.css'
 
 const STORAGE_KEY = 'runwalk-buddy-settings'
 const PROGRESS_STORAGE_KEY = 'runwalk-buddy-progress'
+const SHOW_DEV_TEST_WEEK = import.meta.env.DEV
 
 const DEFAULT_SETTINGS = {
   runSeconds: 30,
@@ -192,6 +193,17 @@ const plans = {
   },
 }
 
+const devTestWeek = {
+  week: 'test',
+  runs: [
+    {
+      warmup: 30,
+      intervals: Array.from({ length: 3 }, () => ({ run: 20, walk: 20 })),
+      cooldown: 30,
+    },
+  ],
+}
+
 function supportsSpeech() {
   return (
     typeof window !== 'undefined' &&
@@ -308,7 +320,18 @@ function phaseSummaryLabel(kind) {
   return kind === PHASE_KIND.RUN ? 'Løping' : 'Gåing'
 }
 
-function addPhase(phases, { key, kind, durationSeconds, label, detail, announceHalfway = false }) {
+function describePhase(kind, cycleIndex, totalCycles) {
+  if (!cycleIndex || !totalCycles) {
+    return phaseSummaryLabel(kind)
+  }
+
+  return `${phaseSummaryLabel(kind)} ${cycleIndex} av ${totalCycles}`
+}
+
+function addPhase(
+  phases,
+  { key, kind, durationSeconds, label, detail, announceHalfway = false, cycleIndex = null, totalCycles = null },
+) {
   if (!durationSeconds || durationSeconds <= 0) {
     return
   }
@@ -317,7 +340,7 @@ function addPhase(phases, { key, kind, durationSeconds, label, detail, announceH
     key,
     kind,
     name: label,
-    statusName: phaseSummaryLabel(kind),
+    statusName: describePhase(kind, cycleIndex, totalCycles),
     prompt: phasePrompt(kind),
     detail,
     durationMs: durationSeconds * 1000,
@@ -332,6 +355,7 @@ function addPhase(phases, { key, kind, durationSeconds, label, detail, announceH
 */
 function buildSessionFromRun(runDefinition) {
   const phases = []
+  const totalCycles = runDefinition.intervals?.filter((interval) => interval.run).length ?? null
 
   addPhase(phases, {
     key: 'warmup',
@@ -361,6 +385,8 @@ function buildSessionFromRun(runDefinition) {
         label: `Løp ${index + 1}`,
         detail: `Løp i ${formatDuration(interval.run)}`,
         announceHalfway: true,
+        cycleIndex: index + 1,
+        totalCycles,
       })
 
       addPhase(phases, {
@@ -369,6 +395,8 @@ function buildSessionFromRun(runDefinition) {
         durationSeconds: interval.walk,
         label: `Gå ${index + 1}`,
         detail: `Gå i ${formatDuration(interval.walk)}`,
+        cycleIndex: interval.walk ? index + 1 : null,
+        totalCycles,
       })
     })
   }
@@ -410,33 +438,70 @@ function settingsFromRun(runDefinition) {
 }
 
 function flattenWeekOptions() {
-  return Object.entries(plans).flatMap(([planKey, plan]) =>
-    plan.weeks.map((week) => ({
-      value: `${planKey}:${week.week}`,
-      planKey,
-      week,
-      planName: plan.name,
-      label: planKey === 'preBeginner' ? `Pre-week ${week.week}` : `Week ${week.week}`,
-    })),
-  )
+  return [
+    {
+      value: 'custom:custom',
+      planKey: 'custom',
+      week: { week: 'custom', runs: [{ custom: true }] },
+      planName: 'Custom',
+      label: 'Custom',
+    },
+    ...Object.entries(plans).flatMap(([planKey, plan]) =>
+      plan.weeks.map((week) => ({
+        value: `${planKey}:${week.week}`,
+        planKey,
+        week,
+        planName: plan.name,
+        label: planKey === 'preBeginner' ? `Pre-week ${week.week}` : `Week ${week.week}`,
+      })),
+    ),
+    ...(SHOW_DEV_TEST_WEEK
+      ? [
+          {
+            value: 'test:test',
+            planKey: 'test',
+            week: devTestWeek,
+            planName: 'Test',
+            label: 'Test',
+          },
+        ]
+      : []),
+  ]
 }
 
 function flattenRunOptions() {
-  return Object.entries(plans).flatMap(([planKey, plan]) =>
-    plan.weeks.flatMap((week) =>
-      week.runs.map((run, runIndex) => ({
-        runId: getRunId(planKey, week.week, runIndex),
-        weekOptionValue: `${planKey}:${week.week}`,
-        planKey,
-        planName: plan.name,
-        weekNumber: week.week,
-        weekLabel: planKey === 'preBeginner' ? `Pre-week ${week.week}` : `Week ${week.week}`,
-        runIndex,
-        runLabel: `Run ${runIndex + 1}`,
-        run,
-      })),
+  return [
+    ...Object.entries(plans).flatMap(([planKey, plan]) =>
+      plan.weeks.flatMap((week) =>
+        week.runs.map((run, runIndex) => ({
+          runId: getRunId(planKey, week.week, runIndex),
+          weekOptionValue: `${planKey}:${week.week}`,
+          planKey,
+          planName: plan.name,
+          weekNumber: week.week,
+          weekLabel: planKey === 'preBeginner' ? `Pre-week ${week.week}` : `Week ${week.week}`,
+          runIndex,
+          runLabel: `Run ${runIndex + 1}`,
+          run,
+        })),
+      ),
     ),
-  )
+    ...(SHOW_DEV_TEST_WEEK
+      ? [
+          {
+            runId: getRunId('test', 'test', 0),
+            weekOptionValue: 'test:test',
+            planKey: 'test',
+            planName: 'Test',
+            weekNumber: 'test',
+            weekLabel: 'Test',
+            runIndex: 0,
+            runLabel: 'Run 1',
+            run: devTestWeek.runs[0],
+          },
+        ]
+      : []),
+  ]
 }
 
 const weekOptionsData = flattenWeekOptions()
@@ -455,12 +520,8 @@ function isWeekCompleted(progress, planKey, weekNumber) {
   return weekRuns.length > 0 && weekRuns.every((option) => progress[option.runId])
 }
 
-function getEventStartTime(event) {
-  if (!event) {
-    return performance.timeOrigin
-  }
-
-  return event.timeStamp > 1e12 ? event.timeStamp : performance.timeOrigin + event.timeStamp
+function getEventStartTime() {
+  return Date.now()
 }
 
 function App() {
@@ -482,6 +543,9 @@ function App() {
   const intervalRef = useRef(null)
   const statusRef = useRef(STATUS.IDLE)
   const speechEnabledRef = useRef(false)
+  const activeRunMetaRef = useRef(null)
+  const speechTimeoutRef = useRef(null)
+  const voicesRef = useRef([])
   const sessionRef = useRef([])
   const phaseIndexRef = useRef(0)
   const phaseEndRef = useRef(0)
@@ -496,6 +560,27 @@ function App() {
   useEffect(() => {
     speechEnabledRef.current = speechEnabled
   }, [speechEnabled])
+
+  useEffect(() => {
+    if (!speechEnabled) {
+      return undefined
+    }
+
+    const updateVoices = () => {
+      voicesRef.current = window.speechSynthesis.getVoices()
+    }
+
+    updateVoices()
+    window.speechSynthesis.addEventListener('voiceschanged', updateVoices)
+
+    return () => {
+      window.speechSynthesis.removeEventListener('voiceschanged', updateVoices)
+    }
+  }, [speechEnabled])
+
+  useEffect(() => {
+    activeRunMetaRef.current = activeRunMeta
+  }, [activeRunMeta])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -561,14 +646,41 @@ function App() {
     () => weekOptions.find((option) => option.value === selectedWeekOptionValue) ?? null,
     [selectedWeekOptionValue, weekOptions],
   )
-  const selectedPlan = selectedWeekOption ? plans[selectedWeekOption.planKey] : null
+  const selectedPlan = selectedWeekOption
+    ? plans[selectedWeekOption.planKey] ?? { name: selectedWeekOption.planName }
+    : null
   const selectedWeek = selectedWeekOption?.week ?? null
+  const isCustomSelection = selectedWeekOption?.planKey === 'custom'
   const currentWeekRunOptions = useMemo(
-    () => runOptions.filter((option) => option.weekOptionValue === selectedWeekOptionValue),
-    [runOptions, selectedWeekOptionValue],
+    () =>
+      isCustomSelection
+        ? [
+            {
+              runId: 'custom:custom:0',
+              weekOptionValue: 'custom:custom',
+              planKey: 'custom',
+              planName: 'Custom',
+              weekNumber: 'custom',
+              weekLabel: 'Custom',
+              runIndex: 0,
+              runLabel: 'Custom',
+              run: null,
+            },
+          ]
+        : runOptions.filter((option) => option.weekOptionValue === selectedWeekOptionValue),
+    [isCustomSelection, runOptions, selectedWeekOptionValue],
   )
-  const selectedRun =
-    selectedWeek && selectedRunValue !== '' ? selectedWeek.runs[Number(selectedRunValue)] ?? null : null
+  const selectedRun = useMemo(() => {
+    if (isCustomSelection) {
+      return { custom: true }
+    }
+
+    if (selectedWeek && selectedRunValue !== '') {
+      return selectedWeek.runs[Number(selectedRunValue)] ?? null
+    }
+
+    return null
+  }, [isCustomSelection, selectedRunValue, selectedWeek])
   const completedRunsCount = useMemo(
     () => runOptions.filter((option) => progress[option.runId]).length,
     [progress, runOptions],
@@ -592,10 +704,14 @@ function App() {
     [selectedRunSessionSummary],
   )
   const idlePreviewTotalDurationSeconds = selectedRun
-    ? selectedRunTotalDurationSeconds
+    ? isCustomSelection
+      ? customTotalDurationSeconds
+      : selectedRunTotalDurationSeconds
     : customTotalDurationSeconds
   const idlePreviewTitle = selectedRun
-    ? `${selectedWeekOption?.label} Run ${Number(selectedRunValue) + 1}`
+    ? isCustomSelection
+      ? 'Custom'
+      : `${selectedWeekOption?.label} Run ${Number(selectedRunValue) + 1}`
     : 'Nybegynnerøkt'
 
   const activePhase = session[currentPhaseIndex] ?? null
@@ -612,9 +728,16 @@ function App() {
     }
   }, [])
 
-  const speak = useCallback((text) => {
+  const speak = useCallback((text, options = {}) => {
     if (!speechEnabledRef.current) {
       return
+    }
+
+    const { immediate = false } = options
+
+    if (speechTimeoutRef.current) {
+      window.clearTimeout(speechTimeoutRef.current)
+      speechTimeoutRef.current = null
     }
 
     const utterance = new window.SpeechSynthesisUtterance(text)
@@ -623,9 +746,35 @@ function App() {
     utterance.volume = 1
     utterance.lang = 'nb-NO'
 
-    window.speechSynthesis.cancel()
-    window.speechSynthesis.resume()
-    window.speechSynthesis.speak(utterance)
+    const norwegianVoice = voicesRef.current.find(
+      (voice) => voice.lang === 'nb-NO' || voice.lang === 'nn-NO' || voice.lang.startsWith('no'),
+    )
+
+    if (norwegianVoice) {
+      utterance.voice = norwegianVoice
+    }
+
+    const speakNow = () => {
+      window.speechSynthesis.resume()
+      window.speechSynthesis.speak(utterance)
+    }
+
+    if (immediate) {
+      window.speechSynthesis.cancel()
+      speakNow()
+      return
+    }
+
+    if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+      window.speechSynthesis.cancel()
+      speechTimeoutRef.current = window.setTimeout(() => {
+        speakNow()
+        speechTimeoutRef.current = null
+      }, 60)
+      return
+    }
+
+    speakNow()
   }, [])
 
   const finishSession = useCallback(() => {
@@ -635,15 +784,19 @@ function App() {
     setRemainingMs(0)
     pausedRemainingRef.current = 0
 
-    if (activeRunMeta) {
+    if (activeRunMetaRef.current) {
       setProgress((current) => ({
         ...current,
-        [getRunId(activeRunMeta.planKey, activeRunMeta.weekNumber, activeRunMeta.runIndex)]: true,
+        [getRunId(
+          activeRunMetaRef.current.planKey,
+          activeRunMetaRef.current.weekNumber,
+          activeRunMetaRef.current.runIndex,
+        )]: true,
       }))
     }
 
     speak('Økten er ferdig')
-  }, [activeRunMeta, clearTicker, speak])
+  }, [clearTicker, speak])
 
   const syncTimer = useCallback(() => {
     if (statusRef.current !== STATUS.RUNNING || !sessionRef.current.length) {
@@ -720,6 +873,11 @@ function App() {
       window.removeEventListener('pageshow', syncTimer)
       clearTicker()
 
+      if (speechTimeoutRef.current) {
+        window.clearTimeout(speechTimeoutRef.current)
+        speechTimeoutRef.current = null
+      }
+
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel()
       }
@@ -738,10 +896,16 @@ function App() {
     setSession([])
     setCurrentPhaseIndex(0)
     setRemainingMs(0)
+    activeRunMetaRef.current = null
     setActiveRunMeta(null)
     setStatus(nextStatus)
 
     if (speechEnabled) {
+      if (speechTimeoutRef.current) {
+        window.clearTimeout(speechTimeoutRef.current)
+        speechTimeoutRef.current = null
+      }
+
       window.speechSynthesis.cancel()
     }
   }
@@ -768,11 +932,14 @@ function App() {
 
     setSession(nextSession)
     setSessionTitle(title)
+    activeRunMetaRef.current = runMeta
     setActiveRunMeta(runMeta)
     setCurrentPhaseIndex(0)
     setRemainingMs(nextSession[0].durationMs)
     setStatus(STATUS.RUNNING)
-    speak(nextSession[0].prompt)
+    // Start cue needs to happen inside the button interaction so mobile browsers
+    // keep speech unlocked for the rest of the workout countdowns and prompts.
+    speak(nextSession[0].prompt, { immediate: true })
     startTicker()
   }
 
@@ -782,6 +949,11 @@ function App() {
   }
 
   function startSelectedRun(event) {
+    if (isCustomSelection) {
+      startCustomSession(event)
+      return
+    }
+
     if (!selectedPlan || !selectedWeek || !selectedRun) {
       return
     }
@@ -811,6 +983,11 @@ function App() {
     setStatus(STATUS.PAUSED)
 
     if (speechEnabled) {
+      if (speechTimeoutRef.current) {
+        window.clearTimeout(speechTimeoutRef.current)
+        speechTimeoutRef.current = null
+      }
+
       window.speechSynthesis.cancel()
     }
   }
@@ -844,6 +1021,13 @@ function App() {
     const nextWeekValue = event.target.value
     setSelectedWeekOptionValue(nextWeekValue)
 
+    if (nextWeekValue === 'custom:custom') {
+      setSelectedRunValue('0')
+      setSessionTitle('Nybegynnerøkt')
+      resetSessionState(STATUS.IDLE)
+      return
+    }
+
     const nextWeekRuns = runOptions.filter((option) => option.weekOptionValue === nextWeekValue)
     const recommendedRun = nextWeekRuns.find((option) => !progress[option.runId]) ?? nextWeekRuns[0]
 
@@ -863,6 +1047,12 @@ function App() {
   function handleRunChange(event) {
     const nextRunValue = event.target.value
     setSelectedRunValue(nextRunValue)
+
+    if (isCustomSelection) {
+      setSessionTitle('Nybegynnerøkt')
+      resetSessionState(STATUS.IDLE)
+      return
+    }
 
     if (selectedWeek && nextRunValue !== '') {
       const nextRun = selectedWeek.runs[Number(nextRunValue)]
@@ -947,7 +1137,8 @@ function App() {
               <select value={selectedRunValue} onChange={handleRunChange} disabled={!selectedWeek}>
                 {currentWeekRunOptions.map((option) => (
                   <option key={option.runId} value={String(option.runIndex)}>
-                    {option.runLabel}{progress[option.runId] ? ' ✓' : ''}
+                    {option.runLabel}
+                    {!isCustomSelection && progress[option.runId] ? ' ✓' : ''}
                   </option>
                 ))}
               </select>
@@ -956,9 +1147,10 @@ function App() {
 
           {selectedRun && (
             <p className="plan-summary">
-              {selectedPlan?.name} - {selectedWeekOption?.label}{' '}
-              Run {Number(selectedRunValue) + 1}
-              {selectedWeekOption && isWeekCompleted(progress, selectedWeekOption.planKey, selectedWeek.week)
+              {isCustomSelection
+                ? 'Custom - Run 1'
+                : `${selectedPlan?.name} - ${selectedWeekOption?.label} Run ${Number(selectedRunValue) + 1}`}
+              {!isCustomSelection && selectedWeekOption && isWeekCompleted(progress, selectedWeekOption.planKey, selectedWeek.week)
                 ? ' - Uken er fullført'
                 : ''}
             </p>
@@ -995,7 +1187,7 @@ function App() {
           </div>
 
           {nextPhase && status !== STATUS.IDLE && status !== STATUS.COMPLETE && (
-            <p className="next-up">Neste: {phaseSummaryLabel(nextPhase.kind)}</p>
+            <p className="next-up">Neste: {nextPhase.statusName ?? phaseSummaryLabel(nextPhase.kind)}</p>
           )}
         </div>
 
@@ -1006,7 +1198,7 @@ function App() {
             onClick={selectedRun ? startSelectedRun : startCustomSession}
             disabled={status === STATUS.RUNNING || (selectedWeekOptionValue !== '' && !selectedRun)}
           >
-            {selectedRun ? 'Start valgt løp' : 'Start nybegynnerøkt'}
+            {selectedRun ? (isCustomSelection ? 'Start custom' : 'Start valgt løp') : 'Start nybegynnerøkt'}
           </button>
 
           <div className="control-row">
@@ -1044,10 +1236,10 @@ function App() {
         </p>
       </section>
 
-      <details className={`settings-card${selectedRun ? ' settings-card-planned' : ''}`}>
+      <details className={`settings-card${selectedRun && !isCustomSelection ? ' settings-card-planned' : ''}`}>
         <summary>Egne innstillinger</summary>
         <p className="settings-copy">Endre tidene før du starter en økt.</p>
-        {selectedRun && (
+        {selectedRun && !isCustomSelection && (
           <div className="settings-plan-row">
             <p className="settings-plan-note">
               Synkronisert fra {selectedPlan?.name} - {selectedWeekOption?.label}{' '}
@@ -1072,6 +1264,8 @@ function App() {
               max="1800"
               step="5"
               value={draftSettings.runSeconds}
+              readOnly={Boolean(selectedRun) && !isCustomSelection}
+              disabled={Boolean(selectedRun) && !isCustomSelection}
               onChange={(event) => handleSettingChange('runSeconds', event.target.value)}
               onBlur={handleSettingBlur}
             />
@@ -1085,6 +1279,8 @@ function App() {
               max="1800"
               step="10"
               value={draftSettings.walkSeconds}
+              readOnly={Boolean(selectedRun) && !isCustomSelection}
+              disabled={Boolean(selectedRun) && !isCustomSelection}
               onChange={(event) => handleSettingChange('walkSeconds', event.target.value)}
               onBlur={handleSettingBlur}
             />
@@ -1098,6 +1294,8 @@ function App() {
               max="20"
               step="1"
               value={draftSettings.cycles}
+              readOnly={Boolean(selectedRun) && !isCustomSelection}
+              disabled={Boolean(selectedRun) && !isCustomSelection}
               onChange={(event) => handleSettingChange('cycles', event.target.value)}
               onBlur={handleSettingBlur}
             />
@@ -1111,6 +1309,8 @@ function App() {
               max="30"
               step="0.5"
               value={draftSettings.warmupMinutes}
+              readOnly={Boolean(selectedRun) && !isCustomSelection}
+              disabled={Boolean(selectedRun) && !isCustomSelection}
               onChange={(event) => handleSettingChange('warmupMinutes', event.target.value)}
               onBlur={handleSettingBlur}
             />
@@ -1124,6 +1324,8 @@ function App() {
               max="30"
               step="0.5"
               value={draftSettings.cooldownMinutes}
+              readOnly={Boolean(selectedRun) && !isCustomSelection}
+              disabled={Boolean(selectedRun) && !isCustomSelection}
               onChange={(event) => handleSettingChange('cooldownMinutes', event.target.value)}
               onBlur={handleSettingBlur}
             />

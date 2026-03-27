@@ -411,6 +411,12 @@ h1 {
   background: rgba(255, 255, 255, 0.9);
 }
 
+.settings-grid input:disabled {
+  background: rgba(255, 247, 251, 0.92);
+  color: rgba(74, 45, 69, 0.72);
+  cursor: not-allowed;
+}
+
 .plan-grid select:focus-visible,
 .settings-grid input:focus-visible,
 .button:focus-visible,
