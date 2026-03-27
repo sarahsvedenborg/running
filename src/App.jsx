@@ -308,7 +308,18 @@ function phaseSummaryLabel(kind) {
   return kind === PHASE_KIND.RUN ? 'Løping' : 'Gåing'
 }
 
-function addPhase(phases, { key, kind, durationSeconds, label, detail, announceHalfway = false }) {
+function describePhase(kind, cycleIndex, totalCycles) {
+  if (!cycleIndex || !totalCycles) {
+    return phaseSummaryLabel(kind)
+  }
+
+  return `${phaseSummaryLabel(kind)} ${cycleIndex} av ${totalCycles}`
+}
+
+function addPhase(
+  phases,
+  { key, kind, durationSeconds, label, detail, announceHalfway = false, cycleIndex = null, totalCycles = null },
+) {
   if (!durationSeconds || durationSeconds <= 0) {
     return
   }
@@ -317,7 +328,7 @@ function addPhase(phases, { key, kind, durationSeconds, label, detail, announceH
     key,
     kind,
     name: label,
-    statusName: phaseSummaryLabel(kind),
+    statusName: describePhase(kind, cycleIndex, totalCycles),
     prompt: phasePrompt(kind),
     detail,
     durationMs: durationSeconds * 1000,
@@ -332,6 +343,7 @@ function addPhase(phases, { key, kind, durationSeconds, label, detail, announceH
 */
 function buildSessionFromRun(runDefinition) {
   const phases = []
+  const totalCycles = runDefinition.intervals?.filter((interval) => interval.run).length ?? null
 
   addPhase(phases, {
     key: 'warmup',
@@ -361,6 +373,8 @@ function buildSessionFromRun(runDefinition) {
         label: `Løp ${index + 1}`,
         detail: `Løp i ${formatDuration(interval.run)}`,
         announceHalfway: true,
+        cycleIndex: index + 1,
+        totalCycles,
       })
 
       addPhase(phases, {
@@ -369,6 +383,8 @@ function buildSessionFromRun(runDefinition) {
         durationSeconds: interval.walk,
         label: `Gå ${index + 1}`,
         detail: `Gå i ${formatDuration(interval.walk)}`,
+        cycleIndex: interval.walk ? index + 1 : null,
+        totalCycles,
       })
     })
   }
@@ -1119,7 +1135,7 @@ function App() {
           </div>
 
           {nextPhase && status !== STATUS.IDLE && status !== STATUS.COMPLETE && (
-            <p className="next-up">Neste: {phaseSummaryLabel(nextPhase.kind)}</p>
+            <p className="next-up">Neste: {nextPhase.statusName ?? phaseSummaryLabel(nextPhase.kind)}</p>
           )}
         </div>
 
