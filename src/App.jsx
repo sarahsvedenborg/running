@@ -455,12 +455,8 @@ function isWeekCompleted(progress, planKey, weekNumber) {
   return weekRuns.length > 0 && weekRuns.every((option) => progress[option.runId])
 }
 
-function getEventStartTime(event) {
-  if (!event) {
-    return performance.timeOrigin
-  }
-
-  return event.timeStamp > 1e12 ? event.timeStamp : performance.timeOrigin + event.timeStamp
+function getEventStartTime() {
+  return Date.now()
 }
 
 function App() {
@@ -482,6 +478,7 @@ function App() {
   const intervalRef = useRef(null)
   const statusRef = useRef(STATUS.IDLE)
   const speechEnabledRef = useRef(false)
+  const activeRunMetaRef = useRef(null)
   const sessionRef = useRef([])
   const phaseIndexRef = useRef(0)
   const phaseEndRef = useRef(0)
@@ -496,6 +493,10 @@ function App() {
   useEffect(() => {
     speechEnabledRef.current = speechEnabled
   }, [speechEnabled])
+
+  useEffect(() => {
+    activeRunMetaRef.current = activeRunMeta
+  }, [activeRunMeta])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -635,15 +636,19 @@ function App() {
     setRemainingMs(0)
     pausedRemainingRef.current = 0
 
-    if (activeRunMeta) {
+    if (activeRunMetaRef.current) {
       setProgress((current) => ({
         ...current,
-        [getRunId(activeRunMeta.planKey, activeRunMeta.weekNumber, activeRunMeta.runIndex)]: true,
+        [getRunId(
+          activeRunMetaRef.current.planKey,
+          activeRunMetaRef.current.weekNumber,
+          activeRunMetaRef.current.runIndex,
+        )]: true,
       }))
     }
 
     speak('Økten er ferdig')
-  }, [activeRunMeta, clearTicker, speak])
+  }, [clearTicker, speak])
 
   const syncTimer = useCallback(() => {
     if (statusRef.current !== STATUS.RUNNING || !sessionRef.current.length) {
@@ -738,6 +743,7 @@ function App() {
     setSession([])
     setCurrentPhaseIndex(0)
     setRemainingMs(0)
+    activeRunMetaRef.current = null
     setActiveRunMeta(null)
     setStatus(nextStatus)
 
@@ -768,6 +774,7 @@ function App() {
 
     setSession(nextSession)
     setSessionTitle(title)
+    activeRunMetaRef.current = runMeta
     setActiveRunMeta(runMeta)
     setCurrentPhaseIndex(0)
     setRemainingMs(nextSession[0].durationMs)
