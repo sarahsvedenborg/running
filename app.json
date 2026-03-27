@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "d13d3418-e261-4d52-a05e-605e4e29ccf1"
+      }
+    },
+    "android": {
+      "package": "com.sarahsvedenborg.running"
+    }
+  }
+}
