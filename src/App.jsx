@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 
 const STORAGE_KEY = 'runwalk-buddy-settings'
+const PROGRESS_STORAGE_KEY = 'runwalk-buddy-progress'
 
 const DEFAULT_SETTINGS = {
   runSeconds: 30,
@@ -25,6 +26,10 @@ const PHASE_KIND = {
 
 function repeatedRuns(count, runBuilder) {
   return Array.from({ length: count }, (_, index) => runBuilder(index + 1))
+}
+
+function getRunId(planKey, weekNumber, runIndex) {
+  return `${planKey}:${weekNumber}:${runIndex}`
 }
 
 /*
@@ -223,6 +228,19 @@ function readSavedSettings() {
   }
 }
 
+function readSavedProgress() {
+  if (typeof window === 'undefined') {
+    return {}
+  }
+
+  try {
+    const raw = window.localStorage.getItem(PROGRESS_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
 function sanitizeSettings(settings) {
   return {
     runSeconds: clampNumber(settings.runSeconds, 5, 1800, DEFAULT_SETTINGS.runSeconds),
@@ -403,6 +421,40 @@ function flattenWeekOptions() {
   )
 }
 
+function flattenRunOptions() {
+  return Object.entries(plans).flatMap(([planKey, plan]) =>
+    plan.weeks.flatMap((week) =>
+      week.runs.map((run, runIndex) => ({
+        runId: getRunId(planKey, week.week, runIndex),
+        weekOptionValue: `${planKey}:${week.week}`,
+        planKey,
+        planName: plan.name,
+        weekNumber: week.week,
+        weekLabel: planKey === 'preBeginner' ? `Pre-week ${week.week}` : `Week ${week.week}`,
+        runIndex,
+        runLabel: `Run ${runIndex + 1}`,
+        run,
+      })),
+    ),
+  )
+}
+
+const weekOptionsData = flattenWeekOptions()
+const runOptionsData = flattenRunOptions()
+
+function getRecommendedRunOption(progress) {
+  const nextRun = runOptionsData.find((option) => !progress[option.runId])
+  return nextRun ?? runOptionsData[runOptionsData.length - 1]
+}
+
+function isWeekCompleted(progress, planKey, weekNumber) {
+  const weekRuns = runOptionsData.filter(
+    (option) => option.planKey === planKey && option.weekNumber === weekNumber,
+  )
+
+  return weekRuns.length > 0 && weekRuns.every((option) => progress[option.runId])
+}
+
 function getEventStartTime(event) {
   if (!event) {
     return performance.timeOrigin
@@ -414,6 +466,7 @@ function getEventStartTime(event) {
 function App() {
   const [settings, setSettings] = useState(readSavedSettings)
   const [draftSettings, setDraftSettings] = useState(() => settingsToDraft(readSavedSettings()))
+  const [progress, setProgress] = useState(readSavedProgress)
   const [selectedWeekOptionValue, setSelectedWeekOptionValue] = useState('')
   const [selectedRunValue, setSelectedRunValue] = useState('')
   const [status, setStatus] = useState(STATUS.IDLE)
@@ -422,6 +475,7 @@ function App() {
   const [remainingMs, setRemainingMs] = useState(0)
   const [speechEnabled] = useState(supportsSpeech)
   const [sessionTitle, setSessionTitle] = useState('Nybegynnerøkt')
+  const [activeRunMeta, setActiveRunMeta] = useState(null)
 
   const intervalRef = useRef(null)
   const statusRef = useRef(STATUS.IDLE)
@@ -448,24 +502,76 @@ function App() {
   }, [settings])
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(progress))
+    }
+  }, [progress])
+
+  useEffect(() => {
     setDraftSettings(settingsToDraft(settings))
   }, [settings])
 
-  const weekOptions = useMemo(() => flattenWeekOptions(), [])
+  useEffect(() => {
+    if (selectedWeekOptionValue && selectedRunValue !== '') {
+      return
+    }
+
+    const recommendedRun = getRecommendedRunOption(progress)
+
+    if (!recommendedRun) {
+      return
+    }
+
+    setSelectedWeekOptionValue(recommendedRun.weekOptionValue)
+    setSelectedRunValue(String(recommendedRun.runIndex))
+
+    const recommendedSettings = settingsFromRun(recommendedRun.run)
+    setSettings(recommendedSettings)
+    setDraftSettings(settingsToDraft(recommendedSettings))
+  }, [progress, selectedRunValue, selectedWeekOptionValue])
+
+  const weekOptions = useMemo(() => weekOptionsData, [])
+  const runOptions = useMemo(() => runOptionsData, [])
   const selectedWeekOption = useMemo(
     () => weekOptions.find((option) => option.value === selectedWeekOptionValue) ?? null,
     [selectedWeekOptionValue, weekOptions],
   )
   const selectedPlan = selectedWeekOption ? plans[selectedWeekOption.planKey] : null
   const selectedWeek = selectedWeekOption?.week ?? null
+  const currentWeekRunOptions = useMemo(
+    () => runOptions.filter((option) => option.weekOptionValue === selectedWeekOptionValue),
+    [runOptions, selectedWeekOptionValue],
+  )
   const selectedRun =
     selectedWeek && selectedRunValue !== '' ? selectedWeek.runs[Number(selectedRunValue)] ?? null : null
+  const completedRunsCount = useMemo(
+    () => runOptions.filter((option) => progress[option.runId]).length,
+    [progress, runOptions],
+  )
+  const totalRunsCount = runOptions.length
+  const trainingProgressPercent = totalRunsCount
+    ? Math.round((completedRunsCount / totalRunsCount) * 100)
+    : 0
 
   const customSessionSummary = useMemo(() => buildSessionFromSettings(settings), [settings])
   const customTotalDurationSeconds = useMemo(
     () => Math.round(customSessionSummary.reduce((sum, phase) => sum + phase.durationMs, 0) / 1000),
     [customSessionSummary],
   )
+  const selectedRunSessionSummary = useMemo(
+    () => (selectedRun ? buildSessionFromRun(selectedRun) : []),
+    [selectedRun],
+  )
+  const selectedRunTotalDurationSeconds = useMemo(
+    () => Math.round(selectedRunSessionSummary.reduce((sum, phase) => sum + phase.durationMs, 0) / 1000),
+    [selectedRunSessionSummary],
+  )
+  const idlePreviewTotalDurationSeconds = selectedRun
+    ? selectedRunTotalDurationSeconds
+    : customTotalDurationSeconds
+  const idlePreviewTitle = selectedRun
+    ? `${selectedWeekOption?.label} Run ${Number(selectedRunValue) + 1}`
+    : 'Nybegynnerøkt'
 
   const activePhase = session[currentPhaseIndex] ?? null
   const nextPhase = session[currentPhaseIndex + 1] ?? null
@@ -503,8 +609,16 @@ function App() {
     statusRef.current = STATUS.COMPLETE
     setRemainingMs(0)
     pausedRemainingRef.current = 0
+
+    if (activeRunMeta) {
+      setProgress((current) => ({
+        ...current,
+        [getRunId(activeRunMeta.planKey, activeRunMeta.weekNumber, activeRunMeta.runIndex)]: true,
+      }))
+    }
+
     speak('Økten er ferdig')
-  }, [clearTicker, speak])
+  }, [activeRunMeta, clearTicker, speak])
 
   const syncTimer = useCallback(() => {
     if (statusRef.current !== STATUS.RUNNING || !sessionRef.current.length) {
@@ -599,6 +713,7 @@ function App() {
     setSession([])
     setCurrentPhaseIndex(0)
     setRemainingMs(0)
+    setActiveRunMeta(null)
     setStatus(nextStatus)
 
     if (speechEnabled) {
@@ -612,7 +727,7 @@ function App() {
     return nextSettings
   }
 
-  function beginSession(nextSession, title, startTime) {
+  function beginSession(nextSession, title, startTime, runMeta = null) {
     if (!nextSession.length) {
       return
     }
@@ -628,6 +743,7 @@ function App() {
 
     setSession(nextSession)
     setSessionTitle(title)
+    setActiveRunMeta(runMeta)
     setCurrentPhaseIndex(0)
     setRemainingMs(nextSession[0].durationMs)
     setStatus(STATUS.RUNNING)
@@ -650,6 +766,11 @@ function App() {
       buildSessionFromRun(selectedRun),
       `${selectedPlan.name} - ${selectedWeekOption.label} Løp ${runNumber}`,
       getEventStartTime(event),
+      {
+        planKey: selectedWeekOption.planKey,
+        weekNumber: selectedWeek.week,
+        runIndex: Number(selectedRunValue),
+      },
     )
   }
 
@@ -695,8 +816,21 @@ function App() {
   }
 
   function handleWeekOptionChange(event) {
-    setSelectedWeekOptionValue(event.target.value)
-    setSelectedRunValue('')
+    const nextWeekValue = event.target.value
+    setSelectedWeekOptionValue(nextWeekValue)
+
+    const nextWeekRuns = runOptions.filter((option) => option.weekOptionValue === nextWeekValue)
+    const recommendedRun = nextWeekRuns.find((option) => !progress[option.runId]) ?? nextWeekRuns[0]
+
+    if (recommendedRun) {
+      setSelectedRunValue(String(recommendedRun.runIndex))
+      const nextSettings = settingsFromRun(recommendedRun.run)
+      setSettings(nextSettings)
+      setDraftSettings(settingsToDraft(nextSettings))
+    } else {
+      setSelectedRunValue('0')
+    }
+
     setSessionTitle('Nybegynnerøkt')
     resetSessionState(STATUS.IDLE)
   }
@@ -717,8 +851,16 @@ function App() {
   }
 
   function disconnectPlanSelection() {
-    setSelectedWeekOptionValue('')
-    setSelectedRunValue('')
+    const recommendedRun = getRecommendedRunOption(progress)
+    setSelectedWeekOptionValue(recommendedRun?.weekOptionValue ?? 'preBeginner:1')
+    setSelectedRunValue(recommendedRun ? String(recommendedRun.runIndex) : '0')
+
+    if (recommendedRun) {
+      const nextSettings = settingsFromRun(recommendedRun.run)
+      setSettings(nextSettings)
+      setDraftSettings(settingsToDraft(nextSettings))
+    }
+
     setSessionTitle('Nybegynnerøkt')
     resetSessionState(STATUS.IDLE)
   }
@@ -732,6 +874,18 @@ function App() {
 
         <section className="plan-card">
           <h2>Treningsplan</h2>
+          <div className="plan-progress-block" aria-hidden="true">
+            <div className="plan-progress-copy">
+              <span>Fremdrift</span>
+              <strong>
+                {completedRunsCount} av {totalRunsCount} løp fullført
+              </strong>
+            </div>
+            <div className="plan-progress-bar">
+              <span style={{ width: `${trainingProgressPercent}%` }}></span>
+            </div>
+          </div>
+
           <div className="plan-grid">
             <label>
               <span>Uke</span>
@@ -748,29 +902,22 @@ function App() {
             <label>
               <span>Løp</span>
               <select value={selectedRunValue} onChange={handleRunChange} disabled={!selectedWeek}>
-                <option value="">Velg løp</option>
-                {selectedWeek?.runs.map((_, index) => (
-                  <option key={`run-${index + 1}`} value={String(index)}>
-                    Run {index + 1}
+                {currentWeekRunOptions.map((option) => (
+                  <option key={option.runId} value={String(option.runIndex)}>
+                    {option.runLabel}{progress[option.runId] ? ' ✓' : ''}
                   </option>
                 ))}
               </select>
             </label>
           </div>
 
-          <button
-            type="button"
-            className="button button-primary"
-            onClick={startSelectedRun}
-            disabled={!selectedRun || status === STATUS.RUNNING}
-          >
-            Start Run
-          </button>
-
           {selectedRun && (
             <p className="plan-summary">
               {selectedPlan?.name} - {selectedWeekOption?.label}{' '}
               Run {Number(selectedRunValue) + 1}
+              {selectedWeekOption && isWeekCompleted(progress, selectedWeekOption.planKey, selectedWeek.week)
+                ? ' - Uken er fullført'
+                : ''}
             </p>
           )}
         </section>
@@ -783,14 +930,17 @@ function App() {
             {status === STATUS.COMPLETE && 'Økten er ferdig'}
           </p>
 
-          <p className="session-title">{status === STATUS.IDLE ? 'Nybegynnerøkt' : sessionTitle}</p>
+          <p className="session-title">{status === STATUS.IDLE ? idlePreviewTitle : sessionTitle}</p>
 
           <p className="countdown">
-            {status === STATUS.IDLE ? formatClock(customTotalDurationSeconds) : formatClock(remainingMs / 1000)}
+            {status === STATUS.IDLE
+              ? formatClock(idlePreviewTotalDurationSeconds)
+              : formatClock(remainingMs / 1000)}
           </p>
 
           <p className="phase-detail">
-            {status === STATUS.IDLE && `Standardøkt varer i ${formatDuration(customTotalDurationSeconds)}`}
+            {status === STATUS.IDLE &&
+              `${selectedRun ? 'Valgt løp' : 'Standardøkt'} varer i ${formatDuration(idlePreviewTotalDurationSeconds)}`}
             {status !== STATUS.IDLE && activePhase?.detail}
           </p>
 
@@ -810,10 +960,10 @@ function App() {
           <button
             type="button"
             className="button button-primary"
-            onClick={startCustomSession}
-            disabled={status === STATUS.RUNNING}
+            onClick={selectedRun ? startSelectedRun : startCustomSession}
+            disabled={status === STATUS.RUNNING || (selectedWeekOptionValue !== '' && !selectedRun)}
           >
-            Start nybegynnerøkt
+            {selectedRun ? 'Start valgt løp' : 'Start nybegynnerøkt'}
           </button>
 
           <div className="control-row">

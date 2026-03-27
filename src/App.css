@@ -76,6 +76,40 @@ h1 {
   color: var(--text-main);
 }
 
+.plan-progress-block {
+  margin-top: 14px;
+}
+
+.plan-progress-copy {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 0.88rem;
+  color: var(--text-soft);
+}
+
+.plan-progress-copy strong {
+  font-size: 0.9rem;
+  color: var(--accent-secondary);
+}
+
+.plan-progress-bar {
+  margin-top: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(214, 186, 255, 0.18);
+  overflow: hidden;
+}
+
+.plan-progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(255, 154, 186, 0.95), rgba(192, 140, 255, 0.95));
+  transition: width 220ms ease;
+}
+
 .plan-grid {
   margin-top: 14px;
   display: grid;
