@@ -134,7 +134,8 @@ function buildSession(settings) {
   for (let cycle = 1; cycle <= settings.cycles; cycle += 1) {
     phases.push({
       key: `run-${cycle}`,
-      name: `Run ${cycle}`,
+      name: `Run ${cycle} of ${settings.cycles}`,
+      statusName: `Cycle ${cycle} of ${settings.cycles} - Run`,
       prompt: 'Start running',
       detail: `Run for ${formatDuration(settings.runSeconds)}`,
       durationMs: settings.runSeconds * 1000,
@@ -142,7 +143,8 @@ function buildSession(settings) {
 
     phases.push({
       key: `walk-${cycle}`,
-      name: `Walk ${cycle}`,
+      name: `Walk ${cycle} of ${settings.cycles}`,
+      statusName: `Cycle ${cycle} of ${settings.cycles} - Walk`,
       prompt: 'Start walking',
       detail: `Walk for ${formatDuration(settings.walkSeconds)}`,
       durationMs: settings.walkSeconds * 1000,
@@ -393,8 +395,8 @@ function App() {
         <div className="status-panel" aria-live="polite">
           <p className="status-label">
             {status === STATUS.IDLE && 'Ready to begin'}
-            {status === STATUS.RUNNING && activePhase?.name}
-            {status === STATUS.PAUSED && `Paused during ${activePhase?.name ?? 'session'}`}
+            {status === STATUS.RUNNING && (activePhase?.statusName ?? activePhase?.name)}
+            {status === STATUS.PAUSED && `Paused during ${activePhase?.statusName ?? activePhase?.name ?? 'session'}`}
             {status === STATUS.COMPLETE && 'Workout complete'}
           </p>
 
