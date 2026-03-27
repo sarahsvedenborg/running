@@ -391,6 +391,18 @@ function settingsFromRun(runDefinition) {
   })
 }
 
+function flattenWeekOptions() {
+  return Object.entries(plans).flatMap(([planKey, plan]) =>
+    plan.weeks.map((week) => ({
+      value: `${planKey}:${week.week}`,
+      planKey,
+      week,
+      planName: plan.name,
+      label: planKey === 'preBeginner' ? `Pre-week ${week.week}` : `Week ${week.week}`,
+    })),
+  )
+}
+
 function getEventStartTime(event) {
   if (!event) {
     return performance.timeOrigin
@@ -402,8 +414,7 @@ function getEventStartTime(event) {
 function App() {
   const [settings, setSettings] = useState(readSavedSettings)
   const [draftSettings, setDraftSettings] = useState(() => settingsToDraft(readSavedSettings()))
-  const [selectedPlanKey, setSelectedPlanKey] = useState('')
-  const [selectedWeekValue, setSelectedWeekValue] = useState('')
+  const [selectedWeekOptionValue, setSelectedWeekOptionValue] = useState('')
   const [selectedRunValue, setSelectedRunValue] = useState('')
   const [status, setStatus] = useState(STATUS.IDLE)
   const [session, setSession] = useState([])
@@ -440,11 +451,13 @@ function App() {
     setDraftSettings(settingsToDraft(settings))
   }, [settings])
 
-  const selectedPlan = selectedPlanKey ? plans[selectedPlanKey] : null
-  const selectedWeek =
-    selectedPlan && selectedWeekValue !== ''
-      ? selectedPlan.weeks.find((week) => String(week.week) === selectedWeekValue) ?? null
-      : null
+  const weekOptions = useMemo(() => flattenWeekOptions(), [])
+  const selectedWeekOption = useMemo(
+    () => weekOptions.find((option) => option.value === selectedWeekOptionValue) ?? null,
+    [selectedWeekOptionValue, weekOptions],
+  )
+  const selectedPlan = selectedWeekOption ? plans[selectedWeekOption.planKey] : null
+  const selectedWeek = selectedWeekOption?.week ?? null
   const selectedRun =
     selectedWeek && selectedRunValue !== '' ? selectedWeek.runs[Number(selectedRunValue)] ?? null : null
 
@@ -635,7 +648,7 @@ function App() {
     const runNumber = Number(selectedRunValue) + 1
     beginSession(
       buildSessionFromRun(selectedRun),
-      `${selectedPlan.name} - Uke ${selectedWeek.week} Løp ${runNumber}`,
+      `${selectedPlan.name} - ${selectedWeekOption.label} Løp ${runNumber}`,
       getEventStartTime(event),
     )
   }
@@ -681,16 +694,8 @@ function App() {
     commitDraftSettings()
   }
 
-  function handlePlanChange(event) {
-    setSelectedPlanKey(event.target.value)
-    setSelectedWeekValue('')
-    setSelectedRunValue('')
-    setSessionTitle('Nybegynnerøkt')
-    resetSessionState(STATUS.IDLE)
-  }
-
-  function handleWeekChange(event) {
-    setSelectedWeekValue(event.target.value)
+  function handleWeekOptionChange(event) {
+    setSelectedWeekOptionValue(event.target.value)
     setSelectedRunValue('')
     setSessionTitle('Nybegynnerøkt')
     resetSessionState(STATUS.IDLE)
@@ -712,8 +717,7 @@ function App() {
   }
 
   function disconnectPlanSelection() {
-    setSelectedPlanKey('')
-    setSelectedWeekValue('')
+    setSelectedWeekOptionValue('')
     setSelectedRunValue('')
     setSessionTitle('Nybegynnerøkt')
     resetSessionState(STATUS.IDLE)
@@ -724,30 +728,18 @@ function App() {
       <section className="hero-card">
         <p className="eyebrow">RunWalk Buddy</p>
         <h1>Gåing og løping</h1>
-        <p className="intro">Velg plan, uke og løp. Legg så bort mobilen og følg stemmen.</p>
+        <p className="intro">Velg uke og løp. Legg så bort mobilen og følg stemmen.</p>
 
         <section className="plan-card">
           <h2>Treningsplan</h2>
           <div className="plan-grid">
             <label>
-              <span>Plan</span>
-              <select value={selectedPlanKey} onChange={handlePlanChange}>
-                <option value="">Velg plan</option>
-                {Object.entries(plans).map(([planKey, plan]) => (
-                  <option key={planKey} value={planKey}>
-                    {plan.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label>
               <span>Uke</span>
-              <select value={selectedWeekValue} onChange={handleWeekChange} disabled={!selectedPlan}>
+              <select value={selectedWeekOptionValue} onChange={handleWeekOptionChange}>
                 <option value="">Velg uke</option>
-                {selectedPlan?.weeks.map((week) => (
-                  <option key={week.week} value={String(week.week)}>
-                    {selectedPlanKey === 'preBeginner' ? `Pre-week ${week.week}` : `Week ${week.week}`}
+                {weekOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>
@@ -777,7 +769,7 @@ function App() {
 
           {selectedRun && (
             <p className="plan-summary">
-              {selectedPlan?.name} - {selectedPlanKey === 'preBeginner' ? `Pre-week ${selectedWeek?.week}` : `Week ${selectedWeek?.week}`}{' '}
+              {selectedPlan?.name} - {selectedWeekOption?.label}{' '}
               Run {Number(selectedRunValue) + 1}
             </p>
           )}
@@ -865,7 +857,7 @@ function App() {
         {selectedRun && (
           <div className="settings-plan-row">
             <p className="settings-plan-note">
-              Synkronisert fra {selectedPlan?.name} - {selectedPlanKey === 'preBeginner' ? `Pre-week ${selectedWeek?.week}` : `Week ${selectedWeek?.week}`}{' '}
+              Synkronisert fra {selectedPlan?.name} - {selectedWeekOption?.label}{' '}
               Run {Number(selectedRunValue) + 1}
             </p>
             <button
