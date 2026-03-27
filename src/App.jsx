@@ -365,11 +365,23 @@ function buildSessionFromSettings(settings) {
   })
 }
 
+function flattenPlanOptions() {
+  return Object.entries(plans).flatMap(([planKey, plan]) =>
+    plan.weeks.map((week, index) => ({
+      value: `${planKey}:${index}`,
+      planKey,
+      weekIndex: index,
+      label: planKey === 'preBeginner' ? `Pre-week ${index + 1}` : `Week ${index + 1}`,
+      planName: plan.name,
+      week,
+    })),
+  )
+}
+
 function App() {
   const [settings, setSettings] = useState(readSavedSettings)
   const [draftSettings, setDraftSettings] = useState(() => settingsToDraft(readSavedSettings()))
-  const [selectedPlanKey, setSelectedPlanKey] = useState('')
-  const [selectedWeekIndex, setSelectedWeekIndex] = useState('')
+  const [selectedPlanWeek, setSelectedPlanWeek] = useState('')
   const [status, setStatus] = useState(STATUS.IDLE)
   const [session, setSession] = useState([])
   const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0)
@@ -405,9 +417,11 @@ function App() {
     setDraftSettings(settingsToDraft(settings))
   }, [settings])
 
-  const selectedPlan = selectedPlanKey ? plans[selectedPlanKey] : null
-  const selectedWeek =
-    selectedPlan && selectedWeekIndex !== '' ? selectedPlan.weeks[Number(selectedWeekIndex)] : null
+  const planOptions = useMemo(() => flattenPlanOptions(), [])
+  const selectedPlanOption = useMemo(
+    () => planOptions.find((option) => option.value === selectedPlanWeek) ?? null,
+    [planOptions, selectedPlanWeek],
+  )
 
   const customSessionSummary = useMemo(() => buildSessionFromSettings(settings), [settings])
   const customTotalDurationSeconds = useMemo(
@@ -589,12 +603,12 @@ function App() {
   }
 
   function startSelectedWeek() {
-    if (!selectedPlan || !selectedWeek) {
+    if (!selectedPlanOption) {
       return
     }
 
-    const title = `${selectedPlan.name} - ${selectedWeek.label}`
-    beginSession(buildSessionFromPlanConfig(selectedWeek.config), title)
+    const title = `${selectedPlanOption.planName} - ${selectedPlanOption.label}`
+    beginSession(buildSessionFromPlanConfig(selectedPlanOption.week.config), title)
   }
 
   function pauseSession() {
@@ -638,15 +652,8 @@ function App() {
     commitDraftSettings()
   }
 
-  function handlePlanChange(event) {
-    setSelectedPlanKey(event.target.value)
-    setSelectedWeekIndex('')
-    setSessionTitle('Nybegynnerøkt')
-    resetSessionState(STATUS.IDLE)
-  }
-
-  function handleWeekChange(event) {
-    setSelectedWeekIndex(event.target.value)
+  function handlePlanWeekChange(event) {
+    setSelectedPlanWeek(event.target.value)
     setSessionTitle('Nybegynnerøkt')
     resetSessionState(STATUS.IDLE)
   }
@@ -662,24 +669,12 @@ function App() {
           <h2>Treningsplan</h2>
           <div className="plan-grid">
             <label>
-              <span>Plan</span>
-              <select value={selectedPlanKey} onChange={handlePlanChange}>
-                <option value="">Velg plan</option>
-                {Object.entries(plans).map(([planKey, plan]) => (
-                  <option key={planKey} value={planKey}>
-                    {plan.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label>
               <span>Uke</span>
-              <select value={selectedWeekIndex} onChange={handleWeekChange} disabled={!selectedPlan}>
+              <select value={selectedPlanWeek} onChange={handlePlanWeekChange}>
                 <option value="">Velg uke</option>
-                {selectedPlan?.weeks.map((week, index) => (
-                  <option key={week.label} value={index}>
-                    {week.label}
+                {planOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>
@@ -690,14 +685,14 @@ function App() {
             type="button"
             className="button button-primary"
             onClick={startSelectedWeek}
-            disabled={!selectedPlan || selectedWeekIndex === '' || status === STATUS.RUNNING}
+            disabled={!selectedPlanOption || status === STATUS.RUNNING}
           >
             Start valgt uke
           </button>
 
-          {selectedWeek && (
+          {selectedPlanOption && (
             <p className="plan-summary">
-              {selectedPlan.name} - {selectedWeek.label}
+              {selectedPlanOption.planName} - {selectedPlanOption.label}
             </p>
           )}
         </section>
