@@ -23,109 +23,165 @@ const PHASE_KIND = {
   RUN: 'run',
 }
 
+function repeatedRuns(count, runBuilder) {
+  return Array.from({ length: count }, (_, index) => runBuilder(index + 1))
+}
+
 /*
-  Training plans live in one structured object so the UI and session engine can
-  read the same source of truth. Each week can be defined as simple repeated
-  intervals or as an explicit list of interval blocks for more complex sessions.
+  Plans are stored as plan -> weeks -> runs so the selectors can stay simple and
+  the timer can start any exact run in the training program.
 */
 const plans = {
   preBeginner: {
     name: 'Pre-Beginner Plan',
     weeks: [
       {
-        label: 'Week 1',
-        config: { warmupSeconds: 300, runSeconds: 20, walkSeconds: 180, cycles: 6, cooldownSeconds: 300 },
+        week: 1,
+        runs: repeatedRuns(3, () => ({
+          warmup: 300,
+          intervals: Array.from({ length: 6 }, () => ({ run: 20, walk: 180 })),
+          cooldown: 300,
+        })),
       },
       {
-        label: 'Week 2',
-        config: { warmupSeconds: 300, runSeconds: 25, walkSeconds: 150, cycles: 7, cooldownSeconds: 300 },
+        week: 2,
+        runs: repeatedRuns(3, () => ({
+          warmup: 300,
+          intervals: Array.from({ length: 7 }, () => ({ run: 25, walk: 150 })),
+          cooldown: 300,
+        })),
       },
       {
-        label: 'Week 3',
-        config: { warmupSeconds: 300, runSeconds: 30, walkSeconds: 120, cycles: 8, cooldownSeconds: 300 },
+        week: 3,
+        runs: repeatedRuns(3, () => ({
+          warmup: 300,
+          intervals: Array.from({ length: 8 }, () => ({ run: 30, walk: 120 })),
+          cooldown: 300,
+        })),
       },
     ],
   },
   couchTo5k: {
-    name: 'Couch to 5K Plan',
+    name: 'Couch to 5K',
     weeks: [
       {
-        label: 'Week 1',
-        config: { warmupSeconds: 300, runSeconds: 60, walkSeconds: 90, cycles: 8, cooldownSeconds: 300 },
+        week: 1,
+        runs: repeatedRuns(3, () => ({
+          warmup: 300,
+          intervals: Array.from({ length: 8 }, () => ({ run: 60, walk: 90 })),
+          cooldown: 300,
+        })),
       },
       {
-        label: 'Week 2',
-        config: { warmupSeconds: 300, runSeconds: 90, walkSeconds: 120, cycles: 6, cooldownSeconds: 300 },
+        week: 2,
+        runs: repeatedRuns(3, () => ({
+          warmup: 300,
+          intervals: Array.from({ length: 6 }, () => ({ run: 90, walk: 120 })),
+          cooldown: 300,
+        })),
       },
       {
-        label: 'Week 3',
-        config: {
-          warmupSeconds: 300,
-          cooldownSeconds: 300,
+        week: 3,
+        runs: repeatedRuns(3, () => ({
+          warmup: 300,
           intervals: [
-            { runSeconds: 90, walkSeconds: 90, repeat: 2 },
-            { runSeconds: 180, walkSeconds: 180, repeat: 2 },
+            { run: 90, walk: 90 },
+            { run: 90, walk: 90 },
+            { run: 180, walk: 180 },
+            { run: 180, walk: 180 },
           ],
-        },
+          cooldown: 300,
+        })),
       },
       {
-        label: 'Week 4',
-        config: {
-          warmupSeconds: 300,
-          cooldownSeconds: 300,
+        week: 4,
+        runs: repeatedRuns(3, () => ({
+          warmup: 300,
           intervals: [
-            { runSeconds: 180, walkSeconds: 90 },
-            { runSeconds: 300, walkSeconds: 150 },
-            { runSeconds: 180, walkSeconds: 90 },
-            { runSeconds: 300, walkSeconds: 150 },
+            { run: 180, walk: 90 },
+            { run: 300, walk: 150 },
+            { run: 180, walk: 90 },
+            { run: 300, walk: 150 },
           ],
-        },
+          cooldown: 300,
+        })),
       },
       {
-        label: 'Week 5',
-        config: {
-          warmupSeconds: 300,
-          cooldownSeconds: 300,
-          intervals: [
-            { runSeconds: 300, walkSeconds: 180 },
-            { runSeconds: 480 },
-          ],
-        },
+        week: 5,
+        runs: [
+          {
+            warmup: 300,
+            intervals: [
+              { run: 300, walk: 180 },
+              { run: 300, walk: 180 },
+              { run: 300 },
+            ],
+            cooldown: 300,
+          },
+          {
+            warmup: 300,
+            intervals: [
+              { run: 480, walk: 300 },
+              { run: 480 },
+            ],
+            cooldown: 300,
+          },
+          {
+            warmup: 300,
+            continuousRun: 1200,
+            cooldown: 300,
+          },
+        ],
       },
       {
-        label: 'Week 6',
-        config: {
-          warmupSeconds: 300,
-          cooldownSeconds: 300,
-          intervals: [
-            { runSeconds: 300, walkSeconds: 180 },
-            { runSeconds: 600 },
-          ],
-        },
+        week: 6,
+        runs: [
+          {
+            warmup: 300,
+            intervals: [
+              { run: 300, walk: 180 },
+              { run: 300, walk: 180 },
+            ],
+            cooldown: 300,
+          },
+          {
+            warmup: 300,
+            intervals: [
+              { run: 600, walk: 180 },
+              { run: 600 },
+            ],
+            cooldown: 300,
+          },
+          {
+            warmup: 300,
+            continuousRun: 1500,
+            cooldown: 300,
+          },
+        ],
       },
       {
-        label: 'Week 7',
-        config: {
-          warmupSeconds: 300,
-          cooldownSeconds: 300,
-          continuousRunSeconds: 1500,
-        },
+        week: 7,
+        runs: repeatedRuns(3, () => ({
+          warmup: 300,
+          continuousRun: 1500,
+          cooldown: 300,
+        })),
       },
       {
-        label: 'Week 8',
-        config: {
-          warmupSeconds: 300,
-          cooldownSeconds: 300,
-          continuousRunSeconds: 1680,
-        },
+        week: 8,
+        runs: repeatedRuns(3, () => ({
+          warmup: 300,
+          continuousRun: 1680,
+          cooldown: 300,
+        })),
       },
       {
-        label: 'Week 9',
-        config: {
-          warmupSeconds: 300,
-          cooldownSeconds: 300,
-          continuousRunSeconds: 1800,
-        },
+        week: 9,
+        runs: repeatedRuns(3, () => ({
+          warmup: 300,
+          continuousRun: 1800,
+          cooldown: 300,
+        })),
       },
     ],
   },
@@ -169,7 +225,7 @@ function readSavedSettings() {
 
 function sanitizeSettings(settings) {
   return {
-    runSeconds: clampNumber(settings.runSeconds, 5, 600, DEFAULT_SETTINGS.runSeconds),
+    runSeconds: clampNumber(settings.runSeconds, 5, 1800, DEFAULT_SETTINGS.runSeconds),
     walkSeconds: clampNumber(settings.walkSeconds, 10, 1800, DEFAULT_SETTINGS.walkSeconds),
     cycles: clampNumber(settings.cycles, 1, 20, DEFAULT_SETTINGS.cycles, true),
     warmupMinutes: clampNumber(
@@ -208,8 +264,7 @@ function formatClock(totalSeconds) {
 
 function formatDuration(seconds) {
   if (seconds % 60 === 0) {
-    const minutes = seconds / 60
-    return `${minutes} min`
+    return `${seconds / 60} min`
   }
 
   if (seconds > 60) {
@@ -222,14 +277,8 @@ function formatDuration(seconds) {
 }
 
 function countdownPrompt(seconds) {
-  if (seconds === 3) {
-    return 'Tre'
-  }
-
-  if (seconds === 2) {
-    return 'To'
-  }
-
+  if (seconds === 3) return 'Tre'
+  if (seconds === 2) return 'To'
   return 'En'
 }
 
@@ -238,10 +287,10 @@ function phasePrompt(kind) {
 }
 
 function phaseSummaryLabel(kind) {
-  return kind === PHASE_KIND.RUN ? 'Løp' : 'Gå'
+  return kind === PHASE_KIND.RUN ? 'Løping' : 'Gåing'
 }
 
-function addPhase(phases, { key, kind, durationSeconds, label, statusName, detail, announceHalfway = false }) {
+function addPhase(phases, { key, kind, durationSeconds, label, detail, announceHalfway = false }) {
   if (!durationSeconds || durationSeconds <= 0) {
     return
   }
@@ -250,177 +299,112 @@ function addPhase(phases, { key, kind, durationSeconds, label, statusName, detai
     key,
     kind,
     name: label,
-    statusName,
+    statusName: phaseSummaryLabel(kind),
     prompt: phasePrompt(kind),
     detail,
     durationMs: durationSeconds * 1000,
-    halfwayPrompt: announceHalfway && durationSeconds >= 480 ? 'Halvveis' : null,
+    halfwayPrompt: announceHalfway && durationSeconds > 600 ? 'Du er halvveis' : null,
   })
 }
 
 /*
-  The session engine builds one flat phase list no matter where the workout came
-  from. That lets the timer support repeating intervals, custom complex blocks,
-  and continuous runs with the same playback logic.
+  The session engine flattens any run definition into timed phases. It handles
+  interval arrays, intervals where the last run has no walk, and continuous runs
+  using the same timer and audio flow.
 */
-function buildSessionFromPlanConfig(config) {
+function buildSessionFromRun(runDefinition) {
   const phases = []
-  const warmupSeconds = Math.round((config.warmupSeconds ?? 0))
-  const cooldownSeconds = Math.round((config.cooldownSeconds ?? 0))
 
   addPhase(phases, {
     key: 'warmup',
     kind: PHASE_KIND.WALK,
-    durationSeconds: warmupSeconds,
+    durationSeconds: runDefinition.warmup,
     label: 'Oppvarming',
-    statusName: 'Gåing',
-    detail: `Gå i ${formatDuration(warmupSeconds)}`,
+    detail: `Gå i ${formatDuration(runDefinition.warmup)}`,
   })
 
-  if (config.continuousRunSeconds) {
+  if (runDefinition.continuousRun) {
     addPhase(phases, {
       key: 'continuous-run',
       kind: PHASE_KIND.RUN,
-      durationSeconds: config.continuousRunSeconds,
+      durationSeconds: runDefinition.continuousRun,
       label: 'Løping',
-      statusName: 'Løping',
-      detail: `Løp i ${formatDuration(config.continuousRunSeconds)}`,
+      detail: `Løp i ${formatDuration(runDefinition.continuousRun)}`,
       announceHalfway: true,
     })
-  } else if (config.intervals?.length) {
-    let runCount = 0
-    let walkCount = 0
+  }
 
-    config.intervals.forEach((block, blockIndex) => {
-      const repeat = block.repeat ?? 1
-
-      for (let repeatIndex = 0; repeatIndex < repeat; repeatIndex += 1) {
-        if (block.runSeconds) {
-          runCount += 1
-          addPhase(phases, {
-            key: `run-${blockIndex + 1}-${repeatIndex + 1}`,
-            kind: PHASE_KIND.RUN,
-            durationSeconds: block.runSeconds,
-            label: `Løp ${runCount}`,
-            statusName: 'Løping',
-            detail: `Løp i ${formatDuration(block.runSeconds)}`,
-            announceHalfway: true,
-          })
-        }
-
-        if (block.walkSeconds) {
-          walkCount += 1
-          addPhase(phases, {
-            key: `walk-${blockIndex + 1}-${repeatIndex + 1}`,
-            kind: PHASE_KIND.WALK,
-            durationSeconds: block.walkSeconds,
-            label: `Gå ${walkCount}`,
-            statusName: 'Gåing',
-            detail: `Gå i ${formatDuration(block.walkSeconds)}`,
-          })
-        }
-      }
-    })
-  } else {
-    for (let cycle = 1; cycle <= config.cycles; cycle += 1) {
+  if (runDefinition.intervals?.length) {
+    runDefinition.intervals.forEach((interval, index) => {
       addPhase(phases, {
-        key: `run-${cycle}`,
+        key: `run-${index + 1}`,
         kind: PHASE_KIND.RUN,
-        durationSeconds: config.runSeconds,
-        label: `Løp ${cycle} av ${config.cycles}`,
-        statusName: 'Løping',
-        detail: `Løp i ${formatDuration(config.runSeconds)}`,
+        durationSeconds: interval.run,
+        label: `Løp ${index + 1}`,
+        detail: `Løp i ${formatDuration(interval.run)}`,
+        announceHalfway: true,
       })
 
       addPhase(phases, {
-        key: `walk-${cycle}`,
+        key: `walk-${index + 1}`,
         kind: PHASE_KIND.WALK,
-        durationSeconds: config.walkSeconds,
-        label: `Gå ${cycle} av ${config.cycles}`,
-        statusName: 'Gåing',
-        detail: `Gå i ${formatDuration(config.walkSeconds)}`,
+        durationSeconds: interval.walk,
+        label: `Gå ${index + 1}`,
+        detail: `Gå i ${formatDuration(interval.walk)}`,
       })
-    }
+    })
   }
 
   addPhase(phases, {
     key: 'cooldown',
     kind: PHASE_KIND.WALK,
-    durationSeconds: cooldownSeconds,
+    durationSeconds: runDefinition.cooldown,
     label: 'Nedtrapping',
-    statusName: 'Gåing',
-    detail: `Gå i ${formatDuration(cooldownSeconds)}`,
+    detail: `Gå i ${formatDuration(runDefinition.cooldown)}`,
   })
 
   return phases
 }
 
 function buildSessionFromSettings(settings) {
-  return buildSessionFromPlanConfig({
-    warmupSeconds: Math.round(settings.warmupMinutes * 60),
-    runSeconds: settings.runSeconds,
-    walkSeconds: settings.walkSeconds,
-    cycles: settings.cycles,
-    cooldownSeconds: Math.round(settings.cooldownMinutes * 60),
+  return buildSessionFromRun({
+    warmup: Math.round(settings.warmupMinutes * 60),
+    intervals: Array.from({ length: settings.cycles }, () => ({
+      run: settings.runSeconds,
+      walk: settings.walkSeconds,
+    })),
+    cooldown: Math.round(settings.cooldownMinutes * 60),
   })
 }
 
-function settingsFromPlanConfig(config) {
-  const baseSettings = {
-    warmupMinutes: (config.warmupSeconds ?? 0) / 60,
-    cooldownMinutes: (config.cooldownSeconds ?? 0) / 60,
-    runSeconds: DEFAULT_SETTINGS.runSeconds,
-    walkSeconds: DEFAULT_SETTINGS.walkSeconds,
-    cycles: DEFAULT_SETTINGS.cycles,
-  }
-
-  if (config.continuousRunSeconds) {
-    return sanitizeSettings({
-      ...baseSettings,
-      runSeconds: config.continuousRunSeconds,
-      walkSeconds: DEFAULT_SETTINGS.walkSeconds,
-      cycles: 1,
-    })
-  }
-
-  if (config.intervals?.length) {
-    const expandedIntervals = config.intervals.flatMap((block) =>
-      Array.from({ length: block.repeat ?? 1 }, () => block),
-    )
-
-    return sanitizeSettings({
-      ...baseSettings,
-      runSeconds: expandedIntervals[0]?.runSeconds ?? DEFAULT_SETTINGS.runSeconds,
-      walkSeconds: expandedIntervals.find((block) => block.walkSeconds)?.walkSeconds ?? DEFAULT_SETTINGS.walkSeconds,
-      cycles: expandedIntervals.filter((block) => block.runSeconds).length || 1,
-    })
-  }
+function settingsFromRun(runDefinition) {
+  const firstInterval = runDefinition.intervals?.[0]
+  const intervalCount = runDefinition.intervals?.filter((interval) => interval.run).length ?? 0
 
   return sanitizeSettings({
-    ...baseSettings,
-    runSeconds: config.runSeconds ?? DEFAULT_SETTINGS.runSeconds,
-    walkSeconds: config.walkSeconds ?? DEFAULT_SETTINGS.walkSeconds,
-    cycles: config.cycles ?? DEFAULT_SETTINGS.cycles,
+    runSeconds: runDefinition.continuousRun ?? firstInterval?.run ?? DEFAULT_SETTINGS.runSeconds,
+    walkSeconds:
+      runDefinition.intervals?.find((interval) => interval.walk)?.walk ?? DEFAULT_SETTINGS.walkSeconds,
+    cycles: intervalCount || 1,
+    warmupMinutes: (runDefinition.warmup ?? 0) / 60,
+    cooldownMinutes: (runDefinition.cooldown ?? 0) / 60,
   })
 }
 
-function flattenPlanOptions() {
-  return Object.entries(plans).flatMap(([planKey, plan]) =>
-    plan.weeks.map((week, index) => ({
-      value: `${planKey}:${index}`,
-      planKey,
-      weekIndex: index,
-      label: planKey === 'preBeginner' ? `Pre-week ${index + 1}` : `Week ${index + 1}`,
-      planName: plan.name,
-      week,
-    })),
-  )
+function getEventStartTime(event) {
+  if (!event) {
+    return performance.timeOrigin
+  }
+
+  return event.timeStamp > 1e12 ? event.timeStamp : performance.timeOrigin + event.timeStamp
 }
 
 function App() {
   const [settings, setSettings] = useState(readSavedSettings)
   const [draftSettings, setDraftSettings] = useState(() => settingsToDraft(readSavedSettings()))
-  const [selectedPlanWeek, setSelectedPlanWeek] = useState('')
+  const [selectedPlanKey, setSelectedPlanKey] = useState('')
+  const [selectedWeekValue, setSelectedWeekValue] = useState('')
+  const [selectedRunValue, setSelectedRunValue] = useState('')
   const [status, setStatus] = useState(STATUS.IDLE)
   const [session, setSession] = useState([])
   const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0)
@@ -456,11 +440,13 @@ function App() {
     setDraftSettings(settingsToDraft(settings))
   }, [settings])
 
-  const planOptions = useMemo(() => flattenPlanOptions(), [])
-  const selectedPlanOption = useMemo(
-    () => planOptions.find((option) => option.value === selectedPlanWeek) ?? null,
-    [planOptions, selectedPlanWeek],
-  )
+  const selectedPlan = selectedPlanKey ? plans[selectedPlanKey] : null
+  const selectedWeek =
+    selectedPlan && selectedWeekValue !== ''
+      ? selectedPlan.weeks.find((week) => String(week.week) === selectedWeekValue) ?? null
+      : null
+  const selectedRun =
+    selectedWeek && selectedRunValue !== '' ? selectedWeek.runs[Number(selectedRunValue)] ?? null : null
 
   const customSessionSummary = useMemo(() => buildSessionFromSettings(settings), [settings])
   const customTotalDurationSeconds = useMemo(
@@ -613,7 +599,7 @@ function App() {
     return nextSettings
   }
 
-  function beginSession(nextSession, title) {
+  function beginSession(nextSession, title, startTime) {
     if (!nextSession.length) {
       return
     }
@@ -624,7 +610,7 @@ function App() {
     pausedRemainingRef.current = 0
     lastCountdownCueRef.current = ''
     lastHalfwayCueRef.current = ''
-    phaseEndRef.current = Date.now() + nextSession[0].durationMs
+    phaseEndRef.current = startTime + nextSession[0].durationMs
     statusRef.current = STATUS.RUNNING
 
     setSession(nextSession)
@@ -636,18 +622,22 @@ function App() {
     startTicker()
   }
 
-  function startCustomSession() {
+  function startCustomSession(event) {
     const nextSettings = commitDraftSettings()
-    beginSession(buildSessionFromSettings(nextSettings), 'Nybegynnerøkt')
+    beginSession(buildSessionFromSettings(nextSettings), 'Nybegynnerøkt', getEventStartTime(event))
   }
 
-  function startSelectedWeek() {
-    if (!selectedPlanOption) {
+  function startSelectedRun(event) {
+    if (!selectedPlan || !selectedWeek || !selectedRun) {
       return
     }
 
-    const title = `${selectedPlanOption.planName} - ${selectedPlanOption.label}`
-    beginSession(buildSessionFromPlanConfig(selectedPlanOption.week.config), title)
+    const runNumber = Number(selectedRunValue) + 1
+    beginSession(
+      buildSessionFromRun(selectedRun),
+      `${selectedPlan.name} - Uke ${selectedWeek.week} Løp ${runNumber}`,
+      getEventStartTime(event),
+    )
   }
 
   function pauseSession() {
@@ -691,14 +681,28 @@ function App() {
     commitDraftSettings()
   }
 
-  function handlePlanWeekChange(event) {
-    const nextValue = event.target.value
-    setSelectedPlanWeek(nextValue)
+  function handlePlanChange(event) {
+    setSelectedPlanKey(event.target.value)
+    setSelectedWeekValue('')
+    setSelectedRunValue('')
+    setSessionTitle('Nybegynnerøkt')
+    resetSessionState(STATUS.IDLE)
+  }
 
-    const nextPlanOption = planOptions.find((option) => option.value === nextValue)
+  function handleWeekChange(event) {
+    setSelectedWeekValue(event.target.value)
+    setSelectedRunValue('')
+    setSessionTitle('Nybegynnerøkt')
+    resetSessionState(STATUS.IDLE)
+  }
 
-    if (nextPlanOption) {
-      const nextSettings = settingsFromPlanConfig(nextPlanOption.week.config)
+  function handleRunChange(event) {
+    const nextRunValue = event.target.value
+    setSelectedRunValue(nextRunValue)
+
+    if (selectedWeek && nextRunValue !== '') {
+      const nextRun = selectedWeek.runs[Number(nextRunValue)]
+      const nextSettings = settingsFromRun(nextRun)
       setSettings(nextSettings)
       setDraftSettings(settingsToDraft(nextSettings))
     }
@@ -708,7 +712,9 @@ function App() {
   }
 
   function disconnectPlanSelection() {
-    setSelectedPlanWeek('')
+    setSelectedPlanKey('')
+    setSelectedWeekValue('')
+    setSelectedRunValue('')
     setSessionTitle('Nybegynnerøkt')
     resetSessionState(STATUS.IDLE)
   }
@@ -718,18 +724,42 @@ function App() {
       <section className="hero-card">
         <p className="eyebrow">RunWalk Buddy</p>
         <h1>Gåing og løping</h1>
-        <p className="intro">Velg en plan eller start en enkel økt og følg stemmebeskjedene.</p>
+        <p className="intro">Velg plan, uke og løp. Legg så bort mobilen og følg stemmen.</p>
 
         <section className="plan-card">
           <h2>Treningsplan</h2>
           <div className="plan-grid">
             <label>
+              <span>Plan</span>
+              <select value={selectedPlanKey} onChange={handlePlanChange}>
+                <option value="">Velg plan</option>
+                {Object.entries(plans).map(([planKey, plan]) => (
+                  <option key={planKey} value={planKey}>
+                    {plan.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
               <span>Uke</span>
-              <select value={selectedPlanWeek} onChange={handlePlanWeekChange}>
+              <select value={selectedWeekValue} onChange={handleWeekChange} disabled={!selectedPlan}>
                 <option value="">Velg uke</option>
-                {planOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
+                {selectedPlan?.weeks.map((week) => (
+                  <option key={week.week} value={String(week.week)}>
+                    {selectedPlanKey === 'preBeginner' ? `Pre-week ${week.week}` : `Week ${week.week}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span>Løp</span>
+              <select value={selectedRunValue} onChange={handleRunChange} disabled={!selectedWeek}>
+                <option value="">Velg løp</option>
+                {selectedWeek?.runs.map((_, index) => (
+                  <option key={`run-${index + 1}`} value={String(index)}>
+                    Run {index + 1}
                   </option>
                 ))}
               </select>
@@ -739,15 +769,16 @@ function App() {
           <button
             type="button"
             className="button button-primary"
-            onClick={startSelectedWeek}
-            disabled={!selectedPlanOption || status === STATUS.RUNNING}
+            onClick={startSelectedRun}
+            disabled={!selectedRun || status === STATUS.RUNNING}
           >
-            Start valgt uke
+            Start Run
           </button>
 
-          {selectedPlanOption && (
+          {selectedRun && (
             <p className="plan-summary">
-              {selectedPlanOption.planName} - {selectedPlanOption.label}
+              {selectedPlan?.name} - {selectedPlanKey === 'preBeginner' ? `Pre-week ${selectedWeek?.week}` : `Week ${selectedWeek?.week}`}{' '}
+              Run {Number(selectedRunValue) + 1}
             </p>
           )}
         </section>
@@ -828,13 +859,14 @@ function App() {
         </p>
       </section>
 
-      <details className={`settings-card${selectedPlanOption ? ' settings-card-planned' : ''}`}>
+      <details className={`settings-card${selectedRun ? ' settings-card-planned' : ''}`}>
         <summary>Egne innstillinger</summary>
         <p className="settings-copy">Endre tidene før du starter en økt.</p>
-        {selectedPlanOption && (
+        {selectedRun && (
           <div className="settings-plan-row">
             <p className="settings-plan-note">
-              Synkronisert fra {selectedPlanOption.planName} - {selectedPlanOption.label}
+              Synkronisert fra {selectedPlan?.name} - {selectedPlanKey === 'preBeginner' ? `Pre-week ${selectedWeek?.week}` : `Week ${selectedWeek?.week}`}{' '}
+              Run {Number(selectedRunValue) + 1}
             </p>
             <button
               type="button"
@@ -852,7 +884,7 @@ function App() {
             <input
               type="number"
               min="5"
-              max="600"
+              max="1800"
               step="5"
               value={draftSettings.runSeconds}
               onChange={(event) => handleSettingChange('runSeconds', event.target.value)}
