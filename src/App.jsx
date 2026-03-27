@@ -707,6 +707,12 @@ function App() {
     resetSessionState(STATUS.IDLE)
   }
 
+  function disconnectPlanSelection() {
+    setSelectedPlanWeek('')
+    setSessionTitle('Nybegynnerøkt')
+    resetSessionState(STATUS.IDLE)
+  }
+
   return (
     <main className="app-shell">
       <section className="hero-card">
@@ -822,9 +828,23 @@ function App() {
         </p>
       </section>
 
-      <details className="settings-card">
+      <details className={`settings-card${selectedPlanOption ? ' settings-card-planned' : ''}`}>
         <summary>Egne innstillinger</summary>
         <p className="settings-copy">Endre tidene før du starter en økt.</p>
+        {selectedPlanOption && (
+          <div className="settings-plan-row">
+            <p className="settings-plan-note">
+              Synkronisert fra {selectedPlanOption.planName} - {selectedPlanOption.label}
+            </p>
+            <button
+              type="button"
+              className="button button-chip"
+              onClick={disconnectPlanSelection}
+            >
+              Koble fra plan
+            </button>
+          </div>
+        )}
 
         <div className="settings-grid">
           <label>

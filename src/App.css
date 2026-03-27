@@ -129,7 +129,8 @@ h1 {
 .phase-detail,
 .next-up,
 .speech-note,
-.settings-copy {
+.settings-copy,
+.settings-plan-note {
   margin: 0;
 }
 
@@ -160,7 +161,8 @@ h1 {
 .phase-detail,
 .next-up,
 .speech-note,
-.settings-copy {
+.settings-copy,
+.settings-plan-note {
   font-size: 0.98rem;
   line-height: 1.5;
   color: var(--text-soft);
@@ -251,6 +253,11 @@ h1 {
   background: var(--surface-soft);
 }
 
+.settings-card-planned {
+  border-color: rgba(141, 106, 223, 0.26);
+  box-shadow: 0 16px 34px rgba(141, 106, 223, 0.12);
+}
+
 .settings-card summary {
   cursor: pointer;
   font-size: 1.05rem;
@@ -276,6 +283,32 @@ h1 {
 
 .settings-copy {
   margin-top: 12px;
+}
+
+.settings-plan-note {
+  margin-top: 8px;
+  font-weight: 700;
+  color: var(--accent-secondary);
+}
+
+.settings-plan-row {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.button-chip {
+  min-height: 40px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--accent-strong);
+  border: 1px solid rgba(179, 79, 125, 0.16);
+  font-size: 0.92rem;
+  font-weight: 700;
 }
 
 .settings-grid {
