@@ -2,17 +2,24 @@
   font-family: 'Avenir Next', Avenir, 'Trebuchet MS', sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #2f2418;
+  color: #452d46;
   background:
-    radial-gradient(circle at top, rgba(255, 216, 168, 0.55), transparent 38%),
-    linear-gradient(180deg, #fff6e9 0%, #ffe9ca 54%, #f6dbc0 100%);
+    radial-gradient(circle at top left, rgba(255, 196, 208, 0.85), transparent 30%),
+    radial-gradient(circle at top right, rgba(216, 194, 255, 0.8), transparent 28%),
+    radial-gradient(circle at bottom, rgba(255, 218, 187, 0.82), transparent 34%),
+    linear-gradient(180deg, #fff8fb 0%, #fff2f0 46%, #fdf2ff 100%);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --text-main: #2f2418;
-  --text-soft: #6f5a43;
-  --accent-strong: #9c4d1e;
+  --text-main: #4a2d45;
+  --text-soft: #7a6176;
+  --accent-strong: #b34f7d;
+  --accent-secondary: #8d6adf;
+  --accent-warm: #ff9f7f;
+  --surface-main: rgba(255, 250, 253, 0.88);
+  --surface-soft: rgba(255, 245, 249, 0.94);
+  --border-soft: rgba(179, 79, 125, 0.14);
 }
 
 * {
@@ -27,6 +34,34 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100svh;
+  position: relative;
+}
+
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  inset: auto;
+  border-radius: 999px;
+  pointer-events: none;
+  filter: blur(8px);
+  opacity: 0.7;
+}
+
+body::before {
+  width: 180px;
+  height: 180px;
+  top: 68px;
+  right: -36px;
+  background: radial-gradient(circle, rgba(255, 187, 212, 0.45), transparent 68%);
+}
+
+body::after {
+  width: 220px;
+  height: 220px;
+  bottom: 40px;
+  left: -80px;
+  background: radial-gradient(circle, rgba(187, 167, 255, 0.36), transparent 68%);
 }
 
 button,
