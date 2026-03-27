@@ -79,6 +79,7 @@ h1 {
 .plan-grid {
   margin-top: 14px;
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -366,10 +367,6 @@ h1 {
   }
 
   .settings-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .plan-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
