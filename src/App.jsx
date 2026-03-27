@@ -539,6 +539,7 @@ function App() {
   const [activeRunMeta, setActiveRunMeta] = useState(null)
   const [installPromptEvent, setInstallPromptEvent] = useState(null)
   const [isInstalled, setIsInstalled] = useState(false)
+  const [isIosDevice, setIsIosDevice] = useState(false)
 
   const intervalRef = useRef(null)
   const statusRef = useRef(STATUS.IDLE)
@@ -610,6 +611,7 @@ function App() {
     }
 
     setIsInstalled(standaloneMatch.matches || window.navigator.standalone === true)
+    setIsIosDevice(/iphone|ipad|ipod/i.test(window.navigator.userAgent))
     standaloneMatch.addEventListener('change', handleInstalled)
     window.addEventListener('beforeinstallprompt', handleBeforeInstall)
     window.addEventListener('appinstalled', handleInstalled)
@@ -1092,6 +1094,12 @@ function App() {
 
   return (
     <main className="app-shell">
+      {!isInstalled && isIosDevice && !installPromptEvent && (
+        <div className="install-banner install-banner-ios">
+          <span>På iPhone: trykk Del og velg Legg til på Hjem-skjermen for å installere appen.</span>
+        </div>
+      )}
+
       {!isInstalled && installPromptEvent && (
         <div className="install-banner">
           <button type="button" className="button button-install" onClick={handleInstallApp}>

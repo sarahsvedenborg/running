@@ -29,6 +29,10 @@
   color: var(--text-soft);
 }
 
+.install-banner-ios {
+  justify-content: center;
+}
+
 .hero-card,
 .settings-card {
   background: var(--surface-main);
