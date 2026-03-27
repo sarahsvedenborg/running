@@ -410,15 +410,24 @@ function settingsFromRun(runDefinition) {
 }
 
 function flattenWeekOptions() {
-  return Object.entries(plans).flatMap(([planKey, plan]) =>
-    plan.weeks.map((week) => ({
-      value: `${planKey}:${week.week}`,
-      planKey,
-      week,
-      planName: plan.name,
-      label: planKey === 'preBeginner' ? `Pre-week ${week.week}` : `Week ${week.week}`,
-    })),
-  )
+  return [
+    {
+      value: 'custom:custom',
+      planKey: 'custom',
+      week: { week: 'custom', runs: [{ custom: true }] },
+      planName: 'Custom',
+      label: 'Custom',
+    },
+    ...Object.entries(plans).flatMap(([planKey, plan]) =>
+      plan.weeks.map((week) => ({
+        value: `${planKey}:${week.week}`,
+        planKey,
+        week,
+        planName: plan.name,
+        label: planKey === 'preBeginner' ? `Pre-week ${week.week}` : `Week ${week.week}`,
+      })),
+    ),
+  ]
 }
 
 function flattenRunOptions() {
@@ -583,12 +592,37 @@ function App() {
   )
   const selectedPlan = selectedWeekOption ? plans[selectedWeekOption.planKey] : null
   const selectedWeek = selectedWeekOption?.week ?? null
+  const isCustomSelection = selectedWeekOption?.planKey === 'custom'
   const currentWeekRunOptions = useMemo(
-    () => runOptions.filter((option) => option.weekOptionValue === selectedWeekOptionValue),
-    [runOptions, selectedWeekOptionValue],
+    () =>
+      isCustomSelection
+        ? [
+            {
+              runId: 'custom:custom:0',
+              weekOptionValue: 'custom:custom',
+              planKey: 'custom',
+              planName: 'Custom',
+              weekNumber: 'custom',
+              weekLabel: 'Custom',
+              runIndex: 0,
+              runLabel: 'Custom',
+              run: null,
+            },
+          ]
+        : runOptions.filter((option) => option.weekOptionValue === selectedWeekOptionValue),
+    [isCustomSelection, runOptions, selectedWeekOptionValue],
   )
-  const selectedRun =
-    selectedWeek && selectedRunValue !== '' ? selectedWeek.runs[Number(selectedRunValue)] ?? null : null
+  const selectedRun = useMemo(() => {
+    if (isCustomSelection) {
+      return { custom: true }
+    }
+
+    if (selectedWeek && selectedRunValue !== '') {
+      return selectedWeek.runs[Number(selectedRunValue)] ?? null
+    }
+
+    return null
+  }, [isCustomSelection, selectedRunValue, selectedWeek])
   const completedRunsCount = useMemo(
     () => runOptions.filter((option) => progress[option.runId]).length,
     [progress, runOptions],
@@ -612,10 +646,14 @@ function App() {
     [selectedRunSessionSummary],
   )
   const idlePreviewTotalDurationSeconds = selectedRun
-    ? selectedRunTotalDurationSeconds
+    ? isCustomSelection
+      ? customTotalDurationSeconds
+      : selectedRunTotalDurationSeconds
     : customTotalDurationSeconds
   const idlePreviewTitle = selectedRun
-    ? `${selectedWeekOption?.label} Run ${Number(selectedRunValue) + 1}`
+    ? isCustomSelection
+      ? 'Custom'
+      : `${selectedWeekOption?.label} Run ${Number(selectedRunValue) + 1}`
     : 'Nybegynnerøkt'
 
   const activePhase = session[currentPhaseIndex] ?? null
@@ -843,6 +881,11 @@ function App() {
   }
 
   function startSelectedRun(event) {
+    if (isCustomSelection) {
+      startCustomSession(event)
+      return
+    }
+
     if (!selectedPlan || !selectedWeek || !selectedRun) {
       return
     }
@@ -910,6 +953,13 @@ function App() {
     const nextWeekValue = event.target.value
     setSelectedWeekOptionValue(nextWeekValue)
 
+    if (nextWeekValue === 'custom:custom') {
+      setSelectedRunValue('0')
+      setSessionTitle('Nybegynnerøkt')
+      resetSessionState(STATUS.IDLE)
+      return
+    }
+
     const nextWeekRuns = runOptions.filter((option) => option.weekOptionValue === nextWeekValue)
     const recommendedRun = nextWeekRuns.find((option) => !progress[option.runId]) ?? nextWeekRuns[0]
 
@@ -929,6 +979,12 @@ function App() {
   function handleRunChange(event) {
     const nextRunValue = event.target.value
     setSelectedRunValue(nextRunValue)
+
+    if (isCustomSelection) {
+      setSessionTitle('Nybegynnerøkt')
+      resetSessionState(STATUS.IDLE)
+      return
+    }
 
     if (selectedWeek && nextRunValue !== '') {
       const nextRun = selectedWeek.runs[Number(nextRunValue)]
@@ -1013,7 +1069,8 @@ function App() {
               <select value={selectedRunValue} onChange={handleRunChange} disabled={!selectedWeek}>
                 {currentWeekRunOptions.map((option) => (
                   <option key={option.runId} value={String(option.runIndex)}>
-                    {option.runLabel}{progress[option.runId] ? ' ✓' : ''}
+                    {option.runLabel}
+                    {!isCustomSelection && progress[option.runId] ? ' ✓' : ''}
                   </option>
                 ))}
               </select>
@@ -1022,9 +1079,10 @@ function App() {
 
           {selectedRun && (
             <p className="plan-summary">
-              {selectedPlan?.name} - {selectedWeekOption?.label}{' '}
-              Run {Number(selectedRunValue) + 1}
-              {selectedWeekOption && isWeekCompleted(progress, selectedWeekOption.planKey, selectedWeek.week)
+              {isCustomSelection
+                ? 'Custom - Run 1'
+                : `${selectedPlan?.name} - ${selectedWeekOption?.label} Run ${Number(selectedRunValue) + 1}`}
+              {!isCustomSelection && selectedWeekOption && isWeekCompleted(progress, selectedWeekOption.planKey, selectedWeek.week)
                 ? ' - Uken er fullført'
                 : ''}
             </p>
@@ -1072,7 +1130,7 @@ function App() {
             onClick={selectedRun ? startSelectedRun : startCustomSession}
             disabled={status === STATUS.RUNNING || (selectedWeekOptionValue !== '' && !selectedRun)}
           >
-            {selectedRun ? 'Start valgt løp' : 'Start nybegynnerøkt'}
+            {selectedRun ? (isCustomSelection ? 'Start custom' : 'Start valgt løp') : 'Start nybegynnerøkt'}
           </button>
 
           <div className="control-row">
@@ -1110,10 +1168,10 @@ function App() {
         </p>
       </section>
 
-      <details className={`settings-card${selectedRun ? ' settings-card-planned' : ''}`}>
+      <details className={`settings-card${selectedRun && !isCustomSelection ? ' settings-card-planned' : ''}`}>
         <summary>Egne innstillinger</summary>
         <p className="settings-copy">Endre tidene før du starter en økt.</p>
-        {selectedRun && (
+        {selectedRun && !isCustomSelection && (
           <div className="settings-plan-row">
             <p className="settings-plan-note">
               Synkronisert fra {selectedPlan?.name} - {selectedWeekOption?.label}{' '}
@@ -1138,8 +1196,8 @@ function App() {
               max="1800"
               step="5"
               value={draftSettings.runSeconds}
-              readOnly={Boolean(selectedRun)}
-              disabled={Boolean(selectedRun)}
+              readOnly={Boolean(selectedRun) && !isCustomSelection}
+              disabled={Boolean(selectedRun) && !isCustomSelection}
               onChange={(event) => handleSettingChange('runSeconds', event.target.value)}
               onBlur={handleSettingBlur}
             />
@@ -1153,8 +1211,8 @@ function App() {
               max="1800"
               step="10"
               value={draftSettings.walkSeconds}
-              readOnly={Boolean(selectedRun)}
-              disabled={Boolean(selectedRun)}
+              readOnly={Boolean(selectedRun) && !isCustomSelection}
+              disabled={Boolean(selectedRun) && !isCustomSelection}
               onChange={(event) => handleSettingChange('walkSeconds', event.target.value)}
               onBlur={handleSettingBlur}
             />
@@ -1168,8 +1226,8 @@ function App() {
               max="20"
               step="1"
               value={draftSettings.cycles}
-              readOnly={Boolean(selectedRun)}
-              disabled={Boolean(selectedRun)}
+              readOnly={Boolean(selectedRun) && !isCustomSelection}
+              disabled={Boolean(selectedRun) && !isCustomSelection}
               onChange={(event) => handleSettingChange('cycles', event.target.value)}
               onBlur={handleSettingBlur}
             />
@@ -1183,8 +1241,8 @@ function App() {
               max="30"
               step="0.5"
               value={draftSettings.warmupMinutes}
-              readOnly={Boolean(selectedRun)}
-              disabled={Boolean(selectedRun)}
+              readOnly={Boolean(selectedRun) && !isCustomSelection}
+              disabled={Boolean(selectedRun) && !isCustomSelection}
               onChange={(event) => handleSettingChange('warmupMinutes', event.target.value)}
               onBlur={handleSettingBlur}
             />
@@ -1198,8 +1256,8 @@ function App() {
               max="30"
               step="0.5"
               value={draftSettings.cooldownMinutes}
-              readOnly={Boolean(selectedRun)}
-              disabled={Boolean(selectedRun)}
+              readOnly={Boolean(selectedRun) && !isCustomSelection}
+              disabled={Boolean(selectedRun) && !isCustomSelection}
               onChange={(event) => handleSettingChange('cooldownMinutes', event.target.value)}
               onBlur={handleSettingBlur}
             />
