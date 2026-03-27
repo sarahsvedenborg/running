@@ -479,6 +479,8 @@ function App() {
   const statusRef = useRef(STATUS.IDLE)
   const speechEnabledRef = useRef(false)
   const activeRunMetaRef = useRef(null)
+  const speechTimeoutRef = useRef(null)
+  const voicesRef = useRef([])
   const sessionRef = useRef([])
   const phaseIndexRef = useRef(0)
   const phaseEndRef = useRef(0)
@@ -492,6 +494,23 @@ function App() {
 
   useEffect(() => {
     speechEnabledRef.current = speechEnabled
+  }, [speechEnabled])
+
+  useEffect(() => {
+    if (!speechEnabled) {
+      return undefined
+    }
+
+    const updateVoices = () => {
+      voicesRef.current = window.speechSynthesis.getVoices()
+    }
+
+    updateVoices()
+    window.speechSynthesis.addEventListener('voiceschanged', updateVoices)
+
+    return () => {
+      window.speechSynthesis.removeEventListener('voiceschanged', updateVoices)
+    }
   }, [speechEnabled])
 
   useEffect(() => {
@@ -618,15 +637,40 @@ function App() {
       return
     }
 
+    if (speechTimeoutRef.current) {
+      window.clearTimeout(speechTimeoutRef.current)
+      speechTimeoutRef.current = null
+    }
+
     const utterance = new window.SpeechSynthesisUtterance(text)
     utterance.rate = 1
     utterance.pitch = 1
     utterance.volume = 1
     utterance.lang = 'nb-NO'
 
-    window.speechSynthesis.cancel()
-    window.speechSynthesis.resume()
-    window.speechSynthesis.speak(utterance)
+    const norwegianVoice = voicesRef.current.find(
+      (voice) => voice.lang === 'nb-NO' || voice.lang === 'nn-NO' || voice.lang.startsWith('no'),
+    )
+
+    if (norwegianVoice) {
+      utterance.voice = norwegianVoice
+    }
+
+    const speakNow = () => {
+      window.speechSynthesis.resume()
+      window.speechSynthesis.speak(utterance)
+    }
+
+    if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+      window.speechSynthesis.cancel()
+      speechTimeoutRef.current = window.setTimeout(() => {
+        speakNow()
+        speechTimeoutRef.current = null
+      }, 60)
+      return
+    }
+
+    speakNow()
   }, [])
 
   const finishSession = useCallback(() => {
@@ -725,6 +769,11 @@ function App() {
       window.removeEventListener('pageshow', syncTimer)
       clearTicker()
 
+      if (speechTimeoutRef.current) {
+        window.clearTimeout(speechTimeoutRef.current)
+        speechTimeoutRef.current = null
+      }
+
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel()
       }
@@ -748,6 +797,11 @@ function App() {
     setStatus(nextStatus)
 
     if (speechEnabled) {
+      if (speechTimeoutRef.current) {
+        window.clearTimeout(speechTimeoutRef.current)
+        speechTimeoutRef.current = null
+      }
+
       window.speechSynthesis.cancel()
     }
   }
@@ -818,6 +872,11 @@ function App() {
     setStatus(STATUS.PAUSED)
 
     if (speechEnabled) {
+      if (speechTimeoutRef.current) {
+        window.clearTimeout(speechTimeoutRef.current)
+        speechTimeoutRef.current = null
+      }
+
       window.speechSynthesis.cancel()
     }
   }
@@ -1079,6 +1138,8 @@ function App() {
               max="1800"
               step="5"
               value={draftSettings.runSeconds}
+              readOnly={Boolean(selectedRun)}
+              disabled={Boolean(selectedRun)}
               onChange={(event) => handleSettingChange('runSeconds', event.target.value)}
               onBlur={handleSettingBlur}
             />
@@ -1092,6 +1153,8 @@ function App() {
               max="1800"
               step="10"
               value={draftSettings.walkSeconds}
+              readOnly={Boolean(selectedRun)}
+              disabled={Boolean(selectedRun)}
               onChange={(event) => handleSettingChange('walkSeconds', event.target.value)}
               onBlur={handleSettingBlur}
             />
@@ -1105,6 +1168,8 @@ function App() {
               max="20"
               step="1"
               value={draftSettings.cycles}
+              readOnly={Boolean(selectedRun)}
+              disabled={Boolean(selectedRun)}
               onChange={(event) => handleSettingChange('cycles', event.target.value)}
               onBlur={handleSettingBlur}
             />
@@ -1118,6 +1183,8 @@ function App() {
               max="30"
               step="0.5"
               value={draftSettings.warmupMinutes}
+              readOnly={Boolean(selectedRun)}
+              disabled={Boolean(selectedRun)}
               onChange={(event) => handleSettingChange('warmupMinutes', event.target.value)}
               onBlur={handleSettingBlur}
             />
@@ -1131,6 +1198,8 @@ function App() {
               max="30"
               step="0.5"
               value={draftSettings.cooldownMinutes}
+              readOnly={Boolean(selectedRun)}
+              disabled={Boolean(selectedRun)}
               onChange={(event) => handleSettingChange('cooldownMinutes', event.target.value)}
               onBlur={handleSettingBlur}
             />
