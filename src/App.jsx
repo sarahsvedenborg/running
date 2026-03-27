@@ -110,10 +110,10 @@ function formatDuration(seconds) {
   if (seconds > 60) {
     const minutes = Math.floor(seconds / 60)
     const remainder = seconds % 60
-    return `${minutes} min ${remainder} sec`
+    return `${minutes} min ${remainder} sek`
   }
 
-  return `${seconds} sec`
+  return `${seconds} sek`
 }
 
 function buildSession(settings) {
@@ -124,9 +124,10 @@ function buildSession(settings) {
   if (warmupSeconds > 0) {
     phases.push({
       key: 'warmup',
-      name: 'Warm-up walk',
-      prompt: 'Start walking',
-      detail: `Walk for ${formatDuration(warmupSeconds)}`,
+      name: 'Oppvarming',
+      statusName: 'Oppvarming - Gå',
+      prompt: 'Begynn å gå',
+      detail: `Gå i ${formatDuration(warmupSeconds)}`,
       durationMs: warmupSeconds * 1000,
     })
   }
@@ -134,19 +135,19 @@ function buildSession(settings) {
   for (let cycle = 1; cycle <= settings.cycles; cycle += 1) {
     phases.push({
       key: `run-${cycle}`,
-      name: `Run ${cycle} of ${settings.cycles}`,
-      statusName: `Cycle ${cycle} of ${settings.cycles} - Run`,
-      prompt: 'Start running',
-      detail: `Run for ${formatDuration(settings.runSeconds)}`,
+      name: `Løp ${cycle} av ${settings.cycles}`,
+      statusName: `Runde ${cycle} av ${settings.cycles} - Løp`,
+      prompt: 'Begynn å løpe',
+      detail: `Løp i ${formatDuration(settings.runSeconds)}`,
       durationMs: settings.runSeconds * 1000,
     })
 
     phases.push({
       key: `walk-${cycle}`,
-      name: `Walk ${cycle} of ${settings.cycles}`,
-      statusName: `Cycle ${cycle} of ${settings.cycles} - Walk`,
-      prompt: 'Start walking',
-      detail: `Walk for ${formatDuration(settings.walkSeconds)}`,
+      name: `Gå ${cycle} av ${settings.cycles}`,
+      statusName: `Runde ${cycle} av ${settings.cycles} - Gå`,
+      prompt: 'Begynn å gå',
+      detail: `Gå i ${formatDuration(settings.walkSeconds)}`,
       durationMs: settings.walkSeconds * 1000,
     })
   }
@@ -154,9 +155,10 @@ function buildSession(settings) {
   if (cooldownSeconds > 0) {
     phases.push({
       key: 'cooldown',
-      name: 'Cool-down walk',
-      prompt: 'Start walking',
-      detail: `Walk for ${formatDuration(cooldownSeconds)}`,
+      name: 'Nedtrapping',
+      statusName: 'Nedtrapping - Gå',
+      prompt: 'Begynn å gå',
+      detail: `Gå i ${formatDuration(cooldownSeconds)}`,
       durationMs: cooldownSeconds * 1000,
     })
   }
@@ -240,7 +242,7 @@ function App() {
     statusRef.current = STATUS.COMPLETE
     setRemainingMs(0)
     pausedRemainingRef.current = 0
-    speak('Workout complete')
+    speak('Økten er ferdig')
   }, [clearTicker, speak])
 
   const syncTimer = useCallback(() => {
@@ -387,17 +389,17 @@ function App() {
     <main className="app-shell">
       <section className="hero-card">
         <p className="eyebrow">RunWalk Buddy</p>
-        <h1>Gåing/løping</h1>
+        <h1>Gåing og løping</h1>
         <p className="intro">
-          Press start, put the phone away, and follow the voice prompts.
+          Trykk start, legg bort mobilen og følg stemmebeskjedene.
         </p>
 
         <div className="status-panel" aria-live="polite">
           <p className="status-label">
-            {status === STATUS.IDLE && 'Ready to begin'}
+            {status === STATUS.IDLE && 'Klar til start'}
             {status === STATUS.RUNNING && (activePhase?.statusName ?? activePhase?.name)}
-            {status === STATUS.PAUSED && `Paused during ${activePhase?.statusName ?? activePhase?.name ?? 'session'}`}
-            {status === STATUS.COMPLETE && 'Workout complete'}
+            {status === STATUS.PAUSED && `Pauset under ${activePhase?.statusName ?? activePhase?.name ?? 'økt'}`}
+            {status === STATUS.COMPLETE && 'Økten er ferdig'}
           </p>
 
           <p className="countdown">
@@ -405,7 +407,7 @@ function App() {
           </p>
 
           <p className="phase-detail">
-            {status === STATUS.IDLE && `Beginner session lasts ${formatDuration(totalDurationSeconds)}`}
+            {status === STATUS.IDLE && `Nybegynnerøkten varer i ${formatDuration(totalDurationSeconds)}`}
             {status !== STATUS.IDLE && activePhase?.detail}
           </p>
 
@@ -417,7 +419,7 @@ function App() {
           </div>
 
           {nextPhase && status !== STATUS.IDLE && status !== STATUS.COMPLETE && (
-            <p className="next-up">Next: {nextPhase.name}</p>
+            <p className="next-up">Neste: {nextPhase.name}</p>
           )}
         </div>
 
@@ -428,7 +430,7 @@ function App() {
             onClick={startSession}
             disabled={status === STATUS.RUNNING}
           >
-            Start Beginner Session
+            Start nybegynnerøkt
           </button>
 
           <div className="control-row">
@@ -446,7 +448,7 @@ function App() {
               onClick={resumeSession}
               disabled={status !== STATUS.PAUSED}
             >
-              Resume
+              Fortsett
             </button>
             <button
               type="button"
@@ -454,25 +456,25 @@ function App() {
               onClick={stopSession}
               disabled={status === STATUS.IDLE}
             >
-              Stop
+              Stopp
             </button>
           </div>
         </div>
 
         <p className="speech-note">
           {speechEnabled
-            ? 'Voice prompts use your device text-to-speech engine.'
-            : 'Text-to-speech is not available in this browser.'}
+            ? 'Stemmebeskjeder bruker enhetens talesyntese.'
+            : 'Talesyntese er ikke tilgjengelig i denne nettleseren.'}
         </p>
       </section>
 
       <details className="settings-card">
-        <summary>Custom Settings</summary>
-        <p className="settings-copy">Change the timings before you start a session.</p>
+        <summary>Egne innstillinger</summary>
+        <p className="settings-copy">Endre tidene før du starter en økt.</p>
 
         <div className="settings-grid">
           <label>
-            <span>Run seconds</span>
+            <span>Løpetid i sekunder</span>
             <input
               type="number"
               min="5"
@@ -485,7 +487,7 @@ function App() {
           </label>
 
           <label>
-            <span>Walk seconds</span>
+            <span>Gåtid i sekunder</span>
             <input
               type="number"
               min="10"
@@ -498,7 +500,7 @@ function App() {
           </label>
 
           <label>
-            <span>Cycles</span>
+            <span>Antall runder</span>
             <input
               type="number"
               min="1"
@@ -511,7 +513,7 @@ function App() {
           </label>
 
           <label>
-            <span>Warm-up minutes</span>
+            <span>Oppvarming i minutter</span>
             <input
               type="number"
               min="0"
@@ -524,7 +526,7 @@ function App() {
           </label>
 
           <label>
-            <span>Cool-down minutes</span>
+            <span>Nedtrapping i minutter</span>
             <input
               type="number"
               min="0"
