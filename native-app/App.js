@@ -514,6 +514,8 @@ export default function App() {
 
   const appStateRef = useRef(AppState.currentState)
   const intervalRef = useRef(null)
+  const speechQueueRef = useRef(Promise.resolve())
+  const speechActiveRef = useRef(false)
   const statusRef = useRef(STATUS.IDLE)
   const sessionRef = useRef([])
   const phaseIndexRef = useRef(0)
@@ -588,7 +590,7 @@ export default function App() {
       clearTicker()
       Speech.stop()
     }
-  })
+  }, [clearTicker, syncTimer])
 
   const weekOptions = useMemo(() => weekOptionsData, [])
   const runOptions = useMemo(() => runOptionsData, [])
@@ -683,16 +685,43 @@ export default function App() {
     a backup prompt when the device is locked for longer periods.
   */
   const speak = useCallback(async (text) => {
-    try {
-      await Speech.stop()
-      Speech.speak(text, {
-        language: 'nb-NO',
-        pitch: 1,
-        rate: 0.95,
-      })
-    } catch {
-      // Keep the timer running even if speech fails.
-    }
+    speechQueueRef.current = speechQueueRef.current
+      .catch(() => undefined)
+      .then(
+        () =>
+          new Promise((resolve) => {
+            try {
+              if (speechActiveRef.current) {
+                Speech.stop()
+              }
+
+              speechActiveRef.current = true
+
+              Speech.speak(text, {
+                language: 'nb-NO',
+                pitch: 1,
+                rate: 0.95,
+                onDone: () => {
+                  speechActiveRef.current = false
+                  resolve()
+                },
+                onStopped: () => {
+                  speechActiveRef.current = false
+                  resolve()
+                },
+                onError: () => {
+                  speechActiveRef.current = false
+                  resolve()
+                },
+              })
+            } catch {
+              speechActiveRef.current = false
+              resolve()
+            }
+          }),
+      )
+
+    return speechQueueRef.current
   }, [])
 
   const pulseTransition = useCallback(async () => {
@@ -818,7 +847,7 @@ export default function App() {
     }
 
     const currentPhase = sessionRef.current[phaseIndexRef.current]
-    const remainingSeconds = Math.max(0, Math.ceil((phaseEndRef.current - now) / 1000))
+    const remainingSeconds = Math.max(0, Math.floor((phaseEndRef.current - now) / 1000) + 1)
     const elapsedMs = currentPhase.durationMs - Math.max(0, phaseEndRef.current - now)
     const hasUpcomingPhase = phaseIndexRef.current < sessionRef.current.length - 1
 
@@ -838,7 +867,7 @@ export default function App() {
       }
     }
 
-    setRemainingMs(Math.max(0, phaseEndRef.current - now))
+    setRemainingMs(Math.max(0, phaseEndRef.current - Date.now()))
   }, [finishSession, persistActiveSession, pulseTransition, speak])
 
   const startTicker = useCallback(() => {
@@ -885,6 +914,7 @@ export default function App() {
     setStatus(nextStatus)
     await Notifications.cancelAllScheduledNotificationsAsync()
     await saveJsonValue(SESSION_STATE_KEY, null)
+    speechActiveRef.current = false
     Speech.stop()
   }
 
@@ -928,9 +958,11 @@ export default function App() {
       activeRunMeta: runMeta,
     })
 
+    setRemainingMs(Math.max(0, phaseEndRef.current - Date.now()))
     await pulseTransition()
     await speak(nextSession[0].prompt)
     startTicker()
+    syncTimer()
   }
 
   async function startCustomSession() {
@@ -966,6 +998,7 @@ export default function App() {
     statusRef.current = STATUS.PAUSED
     setRemainingMs(pausedRemainingRef.current)
     setStatus(STATUS.PAUSED)
+    speechActiveRef.current = false
     Speech.stop()
     await saveJsonValue(SESSION_STATE_KEY, {
       active: true,
